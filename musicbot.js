@@ -1,5 +1,5 @@
 const { Client, GatewayIntentBits, PermissionsBitField, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, AudioResourceStatus, VoiceConnectionStatus, AudioPlayer } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, AudioResourceStatus, VoiceConnectionStatus, AudioPlayer, AudioPlayerOptions } = require('@discordjs/voice');
 const ytSearch = require('yt-search');
 const ffmpeg = require('ffmpeg-static');
 const { Readable } = require('stream');
@@ -15,7 +15,8 @@ const client = new Client({
 });
 
 const prefix = '!';
-let queue = new Map();
+let queue = new Map(); // Queue for managing song requests
+let volume = 0.5; // Default volume
 
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -56,8 +57,9 @@ client.on('messageCreate', async message => {
         const stream = await ytSearch.stream(song.url);
         const resource = createAudioResource(stream, { inputType: 'arbitrary', metadata: { title: song.title } });
         const player = createAudioPlayer();
+        const playerOptions = { volume };
 
-        player.play(resource);
+        player.play(resource, playerOptions);
         connection.subscribe(player);
 
         player.on(AudioPlayerStatus.Idle, () => {
@@ -132,6 +134,95 @@ client.on('messageCreate', async message => {
 
         queue.set(message.guild.id, { songs: [] });
         message.reply('🗑️ **Queue has been cleared!**');
+    }
+
+    if (command === 'volume') {
+        if (!args[0] || isNaN(args[0]) || args[0] < 0 || args[0] > 2) {
+            return message.reply('🔊 **Please provide a volume level between 0 and 2.**');
+        }
+
+        volume = parseFloat(args[0]);
+        message.reply(`🔊 **Volume set to ${volume * 100}%**`);
+    }
+
+    if (command === 'pause') {
+        if (!message.member.voice.channel) {
+            return message.reply('🎵 **You need to join a voice channel first!**');
+        }
+
+        const voiceChannel = message.member.voice.channel;
+        const connection = voiceChannel.guild.voiceAdapterCreator.getVoiceConnection();
+        if (connection) {
+            const player = connection.state.subscription.player;
+            if (player) {
+                player.pause();
+                message.reply('⏸️ **Playback paused.**');
+            } else {
+                message.reply('🔄 **No track is currently playing.**');
+            }
+        } else {
+            message.reply('⚠️ **I am not connected to a voice channel.**');
+        }
+    }
+
+    if (command === 'resume') {
+        if (!message.member.voice.channel) {
+            return message.reply('🎵 **You need to join a voice channel first!**');
+        }
+
+        const voiceChannel = message.member.voice.channel;
+        const connection = voiceChannel.guild.voiceAdapterCreator.getVoiceConnection();
+        if (connection) {
+            const player = connection.state.subscription.player;
+            if (player) {
+                player.unpause();
+                message.reply('▶️ **Playback resumed.**');
+            } else {
+                message.reply('🔄 **No track is currently playing.**');
+            }
+        } else {
+            message.reply('⚠️ **I am not connected to a voice channel.**');
+        }
+    }
+
+    if (command === 'repeat') {
+        if (!message.member.voice.channel) {
+            return message.reply('🎵 **You need to join a voice channel first!**');
+        }
+
+        const voiceChannel = message.member.voice.channel;
+        const connection = voiceChannel.guild.voiceAdapterCreator.getVoiceConnection();
+        if (connection) {
+            const player = connection.state.subscription.player;
+            if (player) {
+                player.setRepeatMode(!player.repeatMode);
+                message.reply(`🔁 **Repeat mode ${player.repeatMode ? 'enabled' : 'disabled'}.**`);
+            } else {
+                message.reply('🔄 **No track is currently playing.**');
+            }
+        } else {
+            message.reply('⚠️ **I am not connected to a voice channel.**');
+        }
+    }
+
+    if (command === 'help') {
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('🎵 **Music Bot Commands**')
+            .addFields(
+                { name: '!play [song name or URL]', value: 'Plays a song in the voice channel.' },
+                { name: '!stop', value: 'Stops playing and leaves the voice channel.' },
+                { name: '!skip', value: 'Skips the current track.' },
+                { name: '!queue', value: 'Displays the current song queue.' },
+                { name: '!clearqueue', value: 'Clears the song queue.' },
+                { name: '!volume [0-2]', value: 'Adjusts the volume of the bot.' },
+                { name: '!pause', value: 'Pauses the playback.' },
+                { name: '!resume', value: 'Resumes the playback.' },
+                { name: '!repeat', value: 'Toggles repeat mode for the current track.' }
+            )
+            .setFooter({ text: `Requested by ${message.author.username}`, iconURL: message.author.displayAvatarURL() });
+
+        message.reply({ embeds: [embed] });
     }
 });
 
