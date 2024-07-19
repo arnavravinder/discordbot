@@ -47,9 +47,12 @@ client.on('guildMemberAdd', async member => {
     });
 
     if (usedInvite) {
-        const channel = member.guild.channels.cache.find(ch => ch.name === 'invite-logs');
-        if (channel) {
-            channel.send(`🎉 Welcome ${member.user.tag}! They joined using the invite link: https://discord.gg/${usedInvite.code}`);
+        const logChannelId = client.guildData ? client.guildData[member.guild.id].inviteLogChannel : null;
+        if (logChannelId) {
+            const channel = member.guild.channels.cache.get(logChannelId);
+            if (channel) {
+                channel.send(`🎉 Welcome ${member.user.tag}! They joined using the invite link: https://discord.gg/${usedInvite.code}`);
+            }
         }
     }
 
@@ -237,6 +240,250 @@ client.on('messageCreate', async message => {
             message.channel.send('⚠️ Invalid role, emoji, or message ID!');
         }
     }
+
+    if (message.content.startsWith('!mute')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
+            return message.channel.send('⚠️ You do not have permission to use this command!');
+        }
+
+        const user = message.mentions.users.first();
+        const reason = message.content.split(' ').slice(2).join(' ') || 'No reason provided';
+
+        if (user) {
+            const member = message.guild.members.cache.get(user.id);
+            if (member) {
+                const muteRole = message.guild.roles.cache.find(role => role.name === 'Muted');
+                if (!muteRole) {
+                    message.channel.send('⚠️ No "Muted" role found. Please create one.');
+                    return;
+                }
+
+                member.roles.add(muteRole)
+                    .then(() => {
+                        message.channel.send(`🔇 ${user.tag} has been muted. Reason: ${reason}`);
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        message.channel.send('❌ There was an error muting the user.');
+                    });
+            } else {
+                message.channel.send('⚠️ User not found in the server.');
+            }
+        } else {
+            message.channel.send('⚠️ You need to mention a user to mute.');
+        }
+    }
+
+    if (message.content.startsWith('!unmute')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
+            return message.channel.send('⚠️ You do not have permission to use this command!');
+        }
+
+        const user = message.mentions.users.first();
+
+        if (user) {
+            const member = message.guild.members.cache.get(user.id);
+            if (member) {
+                const muteRole = message.guild.roles.cache.find(role => role.name === 'Muted');
+                if (!muteRole) {
+                    message.channel.send('⚠️ No "Muted" role found.');
+                    return;
+                }
+
+                member.roles.remove(muteRole)
+                    .then(() => {
+                        message.channel.send(`🔊 ${user.tag} has been unmuted.`);
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        message.channel.send('❌ There was an error unmuting the user.');
+                    });
+            } else {
+                message.channel.send('⚠️ User not found in the server.');
+            }
+        } else {
+            message.channel.send('⚠️ You need to mention a user to unmute.');
+        }
+    }
+
+    if (message.content.startsWith('!clear')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+            return message.channel.send('⚠️ You do not have permission to use this command!');
+        }
+
+        const amount = parseInt(message.content.split(' ')[1]);
+
+        if (isNaN(amount) || amount <= 0 || amount > 100) {
+            message.channel.send('⚠️ Please specify a number between 1 and 100.');
+            return;
+        }
+
+        message.channel.bulkDelete(amount + 1)
+            .then(() => {
+                message.channel.send(`🗑️ Cleared ${amount} messages.`).then(msg => msg.delete({ timeout: 5000 }));
+            })
+            .catch(err => {
+                console.error(err);
+                message.channel.send('❌ There was an error clearing the messages.');
+            });
+    }
+
+    if (message.content.startsWith('!userinfo')) {
+        const user = message.mentions.users.first() || message.author;
+        const member = message.guild.members.cache.get(user.id);
+
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle(`User Info: ${user.tag}`)
+            .setThumbnail(user.displayAvatarURL())
+            .addFields(
+                { name: 'ID', value: user.id, inline: true },
+                { name: 'Joined At', value: member ? member.joinedAt.toDateString() : 'N/A', inline: true },
+                { name: 'Account Created', value: user.createdAt.toDateString(), inline: true },
+                { name: 'Roles', value: member ? member.roles.cache.filter(role => role.name !== '@everyone').map(role => role.name).join(', ') : 'N/A' }
+            )
+            .setFooter({ text: `Requested by ${message.author.username}`, iconURL: message.author.displayAvatarURL() });
+
+        message.channel.send({ embeds: [embed] });
+    }
+
+    if (message.content.startsWith('!serverinfo')) {
+        const guild = message.guild;
+
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle(`Server Info: ${guild.name}`)
+            .setThumbnail(guild.iconURL())
+            .addFields(
+                { name: 'Server ID', value: guild.id, inline: true },
+                { name: 'Owner', value: `<@${guild.ownerId}>`, inline: true },
+                { name: 'Created On', value: guild.createdAt.toDateString(), inline: true },
+                { name: 'Members', value: `${guild.memberCount}`, inline: true },
+                { name: 'Roles', value: `${guild.roles.cache.size}`, inline: true },
+                { name: 'Channels', value: `${guild.channels.cache.size}`, inline: true }
+            )
+            .setFooter({ text: `Requested by ${message.author.username}`, iconURL: message.author.displayAvatarURL() });
+
+        message.channel.send({ embeds: [embed] });
+    }
+
+    if (message.content.startsWith('!ping')) {
+        message.channel.send('🏓 Pong!');
+    }
+
+    if (message.content.startsWith('!hello')) {
+        message.channel.send('👋 Hello there!');
+    }
+
+    if (message.content.startsWith('!avatar')) {
+        const user = message.mentions.users.first() || message.author;
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle(`${user.tag}'s Avatar`)
+            .setImage(user.displayAvatarURL({ dynamic: true }))
+            .setFooter({ text: `Requested by ${message.author.username}`, iconURL: message.author.displayAvatarURL() });
+
+        message.channel.send({ embeds: [embed] });
+    }
+
+    if (message.content.startsWith('!announce')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+            return message.channel.send('⚠️ You do not have permission to use this command!');
+        }
+
+        const args = message.content.split(' ').slice(1);
+        const announcement = args.join(' ');
+
+        if (!announcement) {
+            return message.channel.send('⚠️ You need to provide an announcement message!');
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor('#ff0000')
+            .setTitle('📢 Announcement')
+            .setDescription(announcement)
+            .setFooter({ text: `Announced by ${message.author.username}`, iconURL: message.author.displayAvatarURL() });
+
+        message.guild.channels.cache.filter(ch => ch.permissionsFor(message.guild.me).has(PermissionsBitField.Flags.SendMessages)).forEach(ch => {
+            ch.send({ embeds: [embed] });
+        });
+
+        message.channel.send('📢 Announcement sent to all channels.');
+    }
+
+    if (message.content.startsWith('!kick')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.KickMembers)) {
+            return message.channel.send('⚠️ You do not have permission to use this command!');
+        }
+
+        const user = message.mentions.users.first();
+        const reason = message.content.split(' ').slice(2).join(' ') || 'No reason provided';
+
+        if (user) {
+            const member = message.guild.members.cache.get(user.id);
+            if (member) {
+                member.kick(reason)
+                    .then(() => {
+                        message.channel.send(`🚪 ${user.tag} has been kicked. Reason: ${reason}`);
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        message.channel.send('❌ There was an error kicking the user.');
+                    });
+            } else {
+                message.channel.send('⚠️ User not found in the server.');
+            }
+        } else {
+            message.channel.send('⚠️ You need to mention a user to kick.');
+        }
+    }
+
+    if (message.content.startsWith('!ban')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
+            return message.channel.send('⚠️ You do not have permission to use this command!');
+        }
+
+        const user = message.mentions.users.first();
+        const reason = message.content.split(' ').slice(2).join(' ') || 'No reason provided';
+
+        if (user) {
+            const member = message.guild.members.cache.get(user.id);
+            if (member) {
+                member.ban({ reason })
+                    .then(() => {
+                        message.channel.send(`🚫 ${user.tag} has been banned. Reason: ${reason}`);
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        message.channel.send('❌ There was an error banning the user.');
+                    });
+            } else {
+                message.channel.send('⚠️ User not found in the server.');
+            }
+        } else {
+            message.channel.send('⚠️ You need to mention a user to ban.');
+        }
+    }
+
+    if (message.content.startsWith('!poll')) {
+        const args = message.content.split(' ').slice(1);
+        const question = args.join(' ');
+
+        if (!question) {
+            return message.channel.send('⚠️ You need to provide a question for the poll!');
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('🗳️ Poll')
+            .setDescription(question)
+            .setFooter({ text: `Poll created by ${message.author.username}`, iconURL: message.author.displayAvatarURL() });
+
+        message.channel.send({ embeds: [embed] }).then(sentMessage => {
+            sentMessage.react('👍');
+            sentMessage.react('👎');
+        });
+    }
 });
 
-client.login(process.env.BOT_TOKEN);
+client.login(process.env.TOKEN);
