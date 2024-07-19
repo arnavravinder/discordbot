@@ -17,11 +17,25 @@ const db = new sqlite3.Database('./economy.db');
 db.serialize(() => {
     db.run("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, balance INTEGER)");
     db.run("CREATE TABLE IF NOT EXISTS daily (id TEXT PRIMARY KEY, lastClaim INTEGER)");
+    db.run("CREATE TABLE IF NOT EXISTS shop (item TEXT PRIMARY KEY, price INTEGER)");
+    db.run("CREATE TABLE IF NOT EXISTS inventory (id TEXT, item TEXT, quantity INTEGER, PRIMARY KEY (id, item))");
+    db.run("CREATE TABLE IF NOT EXISTS achievements (id TEXT PRIMARY KEY, achieved BOOLEAN)");
 });
 
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
     console.log(`Prefix is: ${prefix}`);
+
+    // Seed shop data
+    const shopItems = [
+        { item: 'hat', price: 500 },
+        { item: 'shirt', price: 1000 },
+        { item: 'sword', price: 1500 }
+    ];
+
+    shopItems.forEach(item => {
+        db.run("INSERT OR IGNORE INTO shop (item, price) VALUES (?, ?)", [item.item, item.price]);
+    });
 });
 
 client.on('messageCreate', async message => {
@@ -145,6 +159,97 @@ client.on('messageCreate', async message => {
             db.run("UPDATE users SET balance = balance + ? WHERE id = ?", [winnings - amount, userId]);
 
             message.reply(`🎰 **You ${outcome}!** ${outcome === 'win' ? `You won ${winnings} coins!` : `You lost ${amount} coins!`}`);
+        });
+    }
+
+    if (command === 'shop') {
+        db.all("SELECT item, price FROM shop", [], (err, rows) => {
+            if (err) {
+                message.reply('❌ **An error occurred while fetching the shop items.**');
+                console.error(err);
+                return;
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor('#00FF00')
+                .setTitle('🛒 **Shop**')
+                .setDescription(rows.map(row => `${row.item} - ${row.price} coins`).join('\n'));
+
+            message.reply({ embeds: [embed] });
+        });
+    }
+
+    if (command === 'buy') {
+        const item = args[0];
+        const quantity = parseInt(args[1]) || 1;
+
+        if (!item) return message.reply('❌ **You need to specify an item to buy!**');
+        if (isNaN(quantity) || quantity <= 0) return message.reply('❌ **The quantity must be a positive number!**');
+
+        db.get("SELECT price FROM shop WHERE item = ?", [item], (err, row) => {
+            if (err) {
+                message.reply('❌ **An error occurred while fetching the item price.**');
+                console.error(err);
+                return;
+            }
+            if (!row) return message.reply('❌ **Item not found in the shop!**');
+
+            const totalPrice = row.price * quantity;
+
+            db.get("SELECT balance FROM users WHERE id = ?", [userId], (err, userRow) => {
+                if (err) {
+                    message.reply('❌ **An error occurred while fetching your balance.**');
+                    console.error(err);
+                    return;
+                }
+                if (userRow.balance < totalPrice) return message.reply('❌ **You do not have enough balance!**');
+
+                db.run("UPDATE users SET balance = balance - ? WHERE id = ?", [totalPrice, userId]);
+                db.run("INSERT INTO inventory (id, item, quantity) VALUES (?, ?, ?) ON CONFLICT(id, item) DO UPDATE SET quantity = quantity + ?", [userId, item, quantity, quantity]);
+
+                message.reply(`🛍️ **You bought ${quantity} ${item}(s) for ${totalPrice} coins!**`);
+            });
+        });
+    }
+
+    if (command === 'inventory') {
+        db.all("SELECT item, quantity FROM inventory WHERE id = ?", [userId], (err, rows) => {
+            if (err) {
+                message.reply('❌ **An error occurred while fetching your inventory.**');
+                console.error(err);
+                return;
+            }
+
+            if (rows.length === 0) {
+                message.reply('📦 **Your inventory is empty.**');
+                return;
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor('#FF4500')
+                .setTitle('📦 **Your Inventory**')
+                .setDescription(rows.map(row => `${row.item} - ${row.quantity}`).join('\n'));
+
+            message.reply({ embeds: [embed] });
+        });
+    }
+
+    if (command === 'achievements') {
+        db.get("SELECT achieved FROM achievements WHERE id = ?", [userId], (err, row) => {
+            if (err) {
+                message.reply('❌ **An error occurred while fetching your achievements.**');
+                console.error(err);
+                return;
+            }
+
+            if (!row) {
+                db.run("INSERT INTO achievements (id, achieved) VALUES (?, ?)", [userId, false]);
+                message.reply('🏆 **You have no achievements yet.**');
+                return;
+            }
+
+            const achievementStatus = row.achieved ? 'achieved' : 'not achieved';
+            message.reply(`🏆 **Your achievement status: ${achievementStatus}.**`);
         });
     }
 });
