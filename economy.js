@@ -26,7 +26,6 @@ client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
     console.log(`Prefix is: ${prefix}`);
 
-    // Seed shop data
     const shopItems = [
         { item: 'hat', price: 500 },
         { item: 'shirt', price: 1000 },
@@ -49,7 +48,6 @@ client.on('messageCreate', async message => {
         }
     });
 
-    // Daily Reward System
     if (message.content.startsWith(`${prefix}daily`)) {
         const now = Date.now();
         db.get("SELECT lastClaim FROM daily WHERE id = ?", [userId], (err, row) => {
@@ -250,6 +248,82 @@ client.on('messageCreate', async message => {
 
             const achievementStatus = row.achieved ? 'achieved' : 'not achieved';
             message.reply(`🏆 **Your achievement status: ${achievementStatus}.**`);
+        });
+    }
+
+    if (command === 'reset') {
+        db.run("DELETE FROM users WHERE id = ?", [userId]);
+        db.run("DELETE FROM daily WHERE id = ?", [userId]);
+        db.run("DELETE FROM inventory WHERE id = ?", [userId]);
+        db.run("DELETE FROM achievements WHERE id = ?", [userId]);
+        message.reply('🔄 **Your account has been reset.**');
+    }
+
+    if (command === 'report') {
+        const reason = args.join(' ');
+        if (!reason) return message.reply('❌ **You need to provide a reason for the report!**');
+
+        const reportChannel = client.channels.cache.get('YOUR_REPORT_CHANNEL_ID');
+        if (!reportChannel) return message.reply('❌ **Report channel not found!**');
+
+        const reportEmbed = new EmbedBuilder()
+            .setColor('#FF0000')
+            .setTitle('🚨 **New Report**')
+            .setDescription(`**User:** ${message.author.tag}\n**Reason:** ${reason}`)
+            .setTimestamp();
+
+        reportChannel.send({ embeds: [reportEmbed] });
+
+        message.reply('✅ **Your report has been submitted.**');
+    }
+
+    if (command === 'transfer') {
+        const amount = parseInt(args[0]);
+        const recipientId = args[1].replace(/[<@!>]/g, '');
+
+        if (isNaN(amount) || amount <= 0) return message.reply('❌ **The amount must be a positive number!**');
+        if (!recipientId) return message.reply('❌ **You need to specify a recipient!**');
+
+        db.get("SELECT balance FROM users WHERE id = ?", [userId], (err, row) => {
+            if (err) {
+                message.reply('❌ **An error occurred while fetching your balance.**');
+                console.error(err);
+                return;
+            }
+            if (row.balance < amount) return message.reply('❌ **You do not have enough balance!**');
+
+            db.get("SELECT id FROM users WHERE id = ?", [recipientId], (err, recipientRow) => {
+                if (err) {
+                    message.reply('❌ **An error occurred while fetching the recipient\'s balance.**');
+                    console.error(err);
+                    return;
+                }
+                if (!recipientRow) {
+                    db.run("INSERT INTO users (id, balance) VALUES (?, ?)", [recipientId, amount]);
+                }
+
+                db.run("UPDATE users SET balance = balance - ? WHERE id = ?", [amount, userId]);
+                db.run("UPDATE users SET balance = balance + ? WHERE id = ?", [amount, recipientId]);
+
+                message.reply(`✅ **Successfully transferred ${amount} coins to <@${recipientId}>.**`);
+            });
+        });
+    }
+
+    if (command === 'top') {
+        db.all("SELECT id, balance FROM users ORDER BY balance DESC LIMIT 5", [], (err, rows) => {
+            if (err) {
+                message.reply('❌ **An error occurred while fetching the top users.**');
+                console.error(err);
+                return;
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor('#00FFFF')
+                .setTitle('🌟 **Top Users**')
+                .setDescription(rows.map((row, index) => `${index + 1}. <@${row.id}> - ${row.balance} coins`).join('\n'));
+
+            message.reply({ embeds: [embed] });
         });
     }
 });
