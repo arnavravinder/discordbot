@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, PermissionsBitField, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, PermissionsBitField, EmbedBuilder, MessageActionRow, MessageButton } = require('discord.js');
 require('dotenv').config();
 
 const client = new Client({
@@ -15,6 +15,7 @@ const client = new Client({
 const prefix = '!';
 const adminRole = 'Admin';
 const forbiddenWords = ['badword1', 'badword2'];
+const mutedRoleName = 'Muted';
 
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -91,6 +92,56 @@ client.on('messageCreate', message => {
             message.reply('⚠️ **User is not in the guild.**');
         }
     }
+
+    if (command === 'mute') {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.MuteMembers)) {
+            return message.reply('⚠️ **You do not have permission to use this command!**');
+        }
+
+        const user = message.mentions.users.first();
+        if (!user) return message.reply('❌ **You need to mention a user to mute!**');
+
+        const member = message.guild.members.cache.get(user.id);
+        if (member) {
+            const muteRole = message.guild.roles.cache.find(r => r.name === mutedRoleName);
+            if (!muteRole) return message.reply('⚠️ **Mute role not found!**');
+
+            member.roles.add(muteRole).then(() => {
+                message.reply(`🔇 **Successfully muted ${user.tag}.**`);
+                logAction(message.guild, 'Mute', `${user.tag} was muted by ${message.author.tag}`);
+            }).catch(err => {
+                message.reply('❌ **Unable to mute the member.**');
+                console.error(err);
+            });
+        } else {
+            message.reply('⚠️ **User is not in the guild.**');
+        }
+    }
+
+    if (command === 'unmute') {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.MuteMembers)) {
+            return message.reply('⚠️ **You do not have permission to use this command!**');
+        }
+
+        const user = message.mentions.users.first();
+        if (!user) return message.reply('❌ **You need to mention a user to unmute!**');
+
+        const member = message.guild.members.cache.get(user.id);
+        if (member) {
+            const muteRole = message.guild.roles.cache.find(r => r.name === mutedRoleName);
+            if (!muteRole) return message.reply('⚠️ **Mute role not found!**');
+
+            member.roles.remove(muteRole).then(() => {
+                message.reply(`🔊 **Successfully unmuted ${user.tag}.**`);
+                logAction(message.guild, 'Unmute', `${user.tag} was unmuted by ${message.author.tag}`);
+            }).catch(err => {
+                message.reply('❌ **Unable to unmute the member.**');
+                console.error(err);
+            });
+        } else {
+            message.reply('⚠️ **User is not in the guild.**');
+        }
+    }
 });
 
 client.on('messageDelete', message => {
@@ -99,6 +150,26 @@ client.on('messageDelete', message => {
 
 client.on('guildBanAdd', (guild, user) => {
     logAction(guild, 'Guild Ban Add', `${user.tag} was banned from the guild.`);
+});
+
+client.on('guildMemberUpdate', (oldMember, newMember) => {
+    const changes = [];
+    if (oldMember.nickname !== newMember.nickname) {
+        changes.push(`Nickname changed from "${oldMember.nickname}" to "${newMember.nickname}"`);
+    }
+    if (oldMember.roles.cache.size !== newMember.roles.cache.size) {
+        changes.push(`Roles updated`);
+    }
+    if (changes.length > 0) {
+        logAction(newMember.guild, 'Member Update', `User ${newMember.user.tag}: ${changes.join(', ')}`);
+    }
+});
+
+client.on('messageReactionAdd', (reaction, user) => {
+    if (reaction.message.author.bot) return;
+
+    const emoji = reaction.emoji.name;
+    logAction(reaction.message.guild, 'Reaction Added', `${user.tag} reacted with ${emoji} to a message.`);
 });
 
 function logAction(guild, actionType, details) {
