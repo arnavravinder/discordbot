@@ -1,5 +1,5 @@
 const { Client, GatewayIntentBits, PermissionsBitField, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, AudioResourceStatus, VoiceConnectionStatus, AudioPlayer, AudioPlayerOptions } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, AudioResourceStatus, VoiceConnectionStatus, AudioPlayer } = require('@discordjs/voice');
 const ytSearch = require('yt-search');
 const ffmpeg = require('ffmpeg-static');
 const { Readable } = require('stream');
@@ -15,8 +15,9 @@ const client = new Client({
 });
 
 const prefix = '!';
-let queue = new Map(); // Queue for managing song requests
-let volume = 0.5; // Default volume
+let queue = new Map(); //que
+let playlists = new Map(); 
+let volume = 0.5; 
 
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -205,24 +206,134 @@ client.on('messageCreate', async message => {
         }
     }
 
-    if (command === 'help') {
-        const embed = new EmbedBuilder()
-            .setColor('#0099ff')
-            .setTitle('🎵 **Music Bot Commands**')
-            .addFields(
-                { name: '!play [song name or URL]', value: 'Plays a song in the voice channel.' },
-                { name: '!stop', value: 'Stops playing and leaves the voice channel.' },
-                { name: '!skip', value: 'Skips the current track.' },
-                { name: '!queue', value: 'Displays the current song queue.' },
-                { name: '!clearqueue', value: 'Clears the song queue.' },
-                { name: '!volume [0-2]', value: 'Adjusts the volume of the bot.' },
-                { name: '!pause', value: 'Pauses the playback.' },
-                { name: '!resume', value: 'Resumes the playback.' },
-                { name: '!repeat', value: 'Toggles repeat mode for the current track.' }
-            )
-            .setFooter({ text: `Requested by ${message.author.username}`, iconURL: message.author.displayAvatarURL() });
+    if (command === 'nowplaying') {
+        if (!message.member.voice.channel) {
+            return message.reply('🎵 **You need to join a voice channel first!**');
+        }
 
-        message.reply({ embeds: [embed] });
+        const voiceChannel = message.member.voice.channel;
+        const connection = voiceChannel.guild.voiceAdapterCreator.getVoiceConnection();
+        if (connection) {
+            const player = connection.state.subscription.player;
+            if (player) {
+                const song = player.currentResource.metadata;
+                message.reply(`🎶 **Currently playing:** ${song.title}`);
+            } else {
+                message.reply('🔄 **No track is currently playing.**');
+            }
+        } else {
+            message.reply('⚠️ **I am not connected to a voice channel.**');
+        }
+    }
+
+    if (command === 'playlist') {
+        const subCommand = args.shift().toLowerCase();
+        const playlistName = args.join(' ');
+
+        if (subCommand === 'create') {
+            if (!playlistName) return message.reply('❌ **You need to provide a name for the playlist!**');
+            if (playlists.has(playlistName)) return message.reply('⚠️ **Playlist already exists!**');
+
+            playlists.set(playlistName, []);
+            message.reply(`🗂️ **Playlist "${playlistName}" created!**`);
+        }
+
+        if (subCommand === 'add') {
+            if (!playlistName) return message.reply('❌ **You need to provide a name of the playlist to add to!**');
+            if (!playlists.has(playlistName)) return message.reply('⚠️ **Playlist not found!**');
+
+            const songName = args.join(' ');
+            if (!songName) return message.reply('❌ **You need to provide a song name or URL to add to the playlist!**');
+
+            const results = await ytSearch(songName);
+            const song = results.videos[0];
+            if (!song) return message.reply('🔍 **No results found!**');
+
+            const playlist = playlists.get(playlistName);
+            playlist.push({ title: song.title, url: song.url });
+            playlists.set(playlistName, playlist);
+            message.reply(`🎶 **Added "${song.title}" to playlist "${playlistName}".**`);
+        }
+
+        if (subCommand === 'play') {
+            if (!playlistName) return message.reply('❌ **You need to provide a name of the playlist to play!**');
+            if (!playlists.has(playlistName)) return message.reply('⚠️ **Playlist not found!**');
+
+            const playlist = playlists.get(playlistName);
+            if (playlist.length === 0) return message.reply('📜 **Playlist is empty!**');
+
+            const voiceChannel = message.member.voice.channel;
+            if (!voiceChannel) return message.reply('🎵 **You need to join a voice channel first!**');
+
+            const connection = joinVoiceChannel({
+                channelId: voiceChannel.id,
+                guildId: voiceChannel.guild.id,
+                adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+            });
+
+            const player = createAudioPlayer();
+            connection.subscribe(player);
+
+            for (const song of playlist) {
+                const stream = await ytSearch.stream(song.url);
+                const resource = createAudioResource(stream, { inputType: 'arbitrary', metadata: { title: song.title } });
+                player.play(resource);
+                await new Promise(resolve => player.once('stateChange', (oldState, newState) => {
+                    if (oldState.status === AudioPlayerStatus.Playing && newState.status === AudioPlayerStatus.Idle) resolve();
+                }));
+            }
+
+            message.reply(`🎶 **Playing playlist "${playlistName}".**`);
+        }
+
+        if (subCommand === 'delete') {
+            if (!playlistName) return message.reply('❌ **You need to provide a name of the playlist to delete!**');
+            if (!playlists.has(playlistName)) return message.reply('⚠️ **Playlist not found!**');
+
+            playlists.delete(playlistName);
+            message.reply(`🗑️ **Playlist "${playlistName}" deleted!**`);
+        }
+    }
+
+    if (command === 'shuffle') {
+        if (!message.member.voice.channel) {
+            return message.reply('🎵 **You need to join a voice channel first!**');
+        }
+
+        const voiceChannel = message.member.voice.channel;
+        const connection = voiceChannel.guild.voiceAdapterCreator.getVoiceConnection();
+        if (connection) {
+            const serverQueue = queue.get(message.guild.id);
+            if (serverQueue && serverQueue.songs.length > 0) {
+                serverQueue.songs = serverQueue.songs.sort(() => Math.random() - 0.5);
+                message.reply('🔀 **Queue has been shuffled!**');
+            } else {
+                message.reply('📜 **No songs in the queue to shuffle.**');
+            }
+        } else {
+            message.reply('⚠️ **I am not connected to a voice channel.**');
+        }
+    }
+
+    if (command === 'loop') {
+        if (!message.member.voice.channel) {
+            return message.reply('🎵 **You need to join a voice channel first!**');
+        }
+
+        const voiceChannel = message.member.voice.channel;
+        const connection = voiceChannel.guild.voiceAdapterCreator.getVoiceConnection();
+        if (connection) {
+            const player = connection.state.subscription.player;
+            if (player) {
+                const isLooping = player.getRepeatMode();
+                player.setRepeatMode(!isLooping);
+                message.reply(`🔁 **Loop mode ${!isLooping ? 'enabled' : 'disabled'}.**`);
+            } else {
+                message.reply('🔄 **No track is currently playing.**');
+            }
+        } else {
+            message.reply('⚠️ **I am not connected to a voice channel.**');
+        }
     }
 });
 
@@ -282,6 +393,22 @@ client.on('interactionCreate', async interaction => {
             }
         } else {
             interaction.reply('⚠️ **I am not connected to a voice channel.**');
+        }
+    }
+
+    if (customId === 'add_to_playlist') {
+        const [action, playlistName] = customId.split(':');
+        const songTitle = interaction.message.content;
+
+        if (action === 'playlist_add') {
+            if (playlists.has(playlistName)) {
+                const playlist = playlists.get(playlistName);
+                playlist.push({ title: songTitle, url: interaction.message.url });
+                playlists.set(playlistName, playlist);
+                interaction.reply(`🎶 **Added "${songTitle}" to playlist "${playlistName}".**`);
+            } else {
+                interaction.reply('⚠️ **Playlist not found!**');
+            }
         }
     }
 });
