@@ -9,6 +9,7 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessageTyping,
         GatewayIntentBits.GuildPresences,
+        GatewayIntentBits.GuildMessageTyping,
     ]
 });
 
@@ -30,6 +31,11 @@ client.on('guildMemberAdd', member => {
     if (channel) {
         channel.send(`Welcome ${member}!`);
     }
+    logAction(member.guild, 'Member Join', `User ${member.user.tag} has joined the server.`);
+});
+
+client.on('guildMemberRemove', member => {
+    logAction(member.guild, 'Member Leave', `User ${member.user.tag} has left the server.`);
 });
 
 client.on('messageCreate', message => {
@@ -148,8 +154,18 @@ client.on('messageDelete', message => {
     logAction(message.guild, 'Message Delete', `Message by ${message.author.tag} was deleted: "${message.content}"`);
 });
 
+client.on('messageUpdate', (oldMessage, newMessage) => {
+    if (oldMessage.content !== newMessage.content) {
+        logAction(oldMessage.guild, 'Message Edit', `Message edited by ${oldMessage.author.tag}: "${oldMessage.content}" → "${newMessage.content}"`);
+    }
+});
+
 client.on('guildBanAdd', (guild, user) => {
     logAction(guild, 'Guild Ban Add', `${user.tag} was banned from the guild.`);
+});
+
+client.on('guildBanRemove', (guild, user) => {
+    logAction(guild, 'Guild Ban Remove', `${user.tag} was unbanned from the guild.`);
 });
 
 client.on('guildMemberUpdate', (oldMember, newMember) => {
@@ -170,6 +186,54 @@ client.on('messageReactionAdd', (reaction, user) => {
 
     const emoji = reaction.emoji.name;
     logAction(reaction.message.guild, 'Reaction Added', `${user.tag} reacted with ${emoji} to a message.`);
+});
+
+client.on('messageReactionRemove', (reaction, user) => {
+    if (reaction.message.author.bot) return;
+
+    const emoji = reaction.emoji.name;
+    logAction(reaction.message.guild, 'Reaction Removed', `${user.tag} removed their ${emoji} reaction from a message.`);
+});
+
+client.on('presenceUpdate', (oldPresence, newPresence) => {
+    const user = newPresence.user;
+    const oldStatus = oldPresence.status;
+    const newStatus = newPresence.status;
+
+    if (oldStatus !== newStatus) {
+        logAction(newPresence.guild, 'Presence Update', `User ${user.tag} changed status from ${oldStatus} to ${newStatus}`);
+    }
+});
+
+client.on('guildScheduledEventCreate', event => {
+    logAction(event.guild, 'Scheduled Event Create', `Scheduled event "${event.name}" created.`);
+});
+
+client.on('guildScheduledEventUpdate', (oldEvent, newEvent) => {
+    logAction(newEvent.guild, 'Scheduled Event Update', `Scheduled event "${oldEvent.name}" updated to "${newEvent.name}".`);
+});
+
+client.on('guildScheduledEventDelete', event => {
+    logAction(event.guild, 'Scheduled Event Delete', `Scheduled event "${event.name}" deleted.`);
+});
+
+client.on('voiceStateUpdate', (oldState, newState) => {
+    const user = newState.member.user;
+    const oldChannel = oldState.channel;
+    const newChannel = newState.channel;
+
+    if (oldChannel !== newChannel) {
+        if (oldChannel) {
+            logAction(newState.guild, 'Voice Channel Leave', `${user.tag} left voice channel ${oldChannel.name}`);
+        }
+        if (newChannel) {
+            logAction(newState.guild, 'Voice Channel Join', `${user.tag} joined voice channel ${newChannel.name}`);
+        }
+    }
+});
+
+client.on('error', error => {
+    console.error('An error occurred:', error);
 });
 
 function logAction(guild, actionType, details) {
