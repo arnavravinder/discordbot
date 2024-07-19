@@ -394,3 +394,134 @@ client.on('messageCreate', async message => {
             return message.channel.send('⚠️ Please mention a role.');
         }
 
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle(`Role Info: ${role.name}`)
+            .addFields(
+                { name: 'Role Name', value: role.name, inline: true },
+                { name: 'Role ID', value: role.id, inline: true },
+                { name: 'Members', value: role.members.size.toString(), inline: true }
+            );
+
+        message.channel.send({ embeds: [embed] });
+    }
+
+    if (message.content.startsWith('!suggest')) {
+        const suggestion = message.content.split(' ').slice(1).join(' ');
+        if (!suggestion) {
+            return message.channel.send('⚠️ Please provide a suggestion.');
+        }
+
+        const suggestionsChannel = message.guild.channels.cache.find(channel => channel.name === 'suggestions');
+        if (!suggestionsChannel) {
+            return message.channel.send('⚠️ Suggestions channel not found.');
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('New Suggestion')
+            .setDescription(suggestion)
+            .setFooter({ text: `Suggested by ${message.author.username}`, iconURL: message.author.displayAvatarURL() });
+
+        suggestionsChannel.send({ embeds: [embed] });
+        message.channel.send('✅ Your suggestion has been submitted!');
+    }
+
+    if (message.content.startsWith('!poll')) {
+        const args = message.content.split(' ').slice(1);
+        const question = args.join(' ');
+
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('Poll')
+            .setDescription(question)
+            .setFooter({ text: 'React with 👍 or 👎' });
+
+        const msg = await message.channel.send({ embeds: [embed] });
+        await msg.react('👍');
+        await msg.react('👎');
+    }
+
+    if (message.content.startsWith('!clear')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+            return message.reply("🚫 You don't have permission to manage messages!");
+        }
+
+        const args = message.content.split(' ').slice(1);
+        const amount = parseInt(args[0]);
+
+        if (isNaN(amount) || amount <= 0 || amount > 100) {
+            return message.channel.send('⚠️ You need to specify a number between 1 and 100!');
+        }
+
+        await message.channel.bulkDelete(amount, true);
+        message.channel.send(`🗑️ Deleted ${amount} messages!`).then(msg => {
+            setTimeout(() => msg.delete(), 5000);
+        });
+    }
+
+    if (message.content.startsWith('!reactrole')) {
+        const args = message.content.split(' ').slice(1);
+        const roleName = args.shift();
+        const emoji = args.shift();
+
+        const role = message.guild.roles.cache.find(r => r.name === roleName);
+        if (!role) {
+            return message.channel.send('⚠️ Role not found!');
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('React to get a role!')
+            .setDescription(`React with ${emoji} to get the ${roleName} role.`);
+
+        const msg = await message.channel.send({ embeds: [embed] });
+        msg.react(emoji);
+
+        client.on('messageReactionAdd', (reaction, user) => {
+            if (reaction.message.id === msg.id && !user.bot) {
+                const member = reaction.message.guild.members.cache.get(user.id);
+                if (member) {
+                    member.roles.add(role);
+                }
+            }
+        });
+
+        client.on('messageReactionRemove', (reaction, user) => {
+            if (reaction.message.id === msg.id && !user.bot) {
+                const member = reaction.message.guild.members.cache.get(user.id);
+                if (member) {
+                    member.roles.remove(role);
+                }
+            }
+        });
+    }
+
+    if (message.content.startsWith('!joke')) {
+        const jokes = [
+            "Why don't scientists trust atoms? Because they make up everything!",
+            "What do you get when you cross a snowman and a vampire? Frostbite.",
+            "Why did the scarecrow win an award? Because he was outstanding in his field!"
+        ];
+
+        const randomJoke = jokes[Math.floor(Math.random() * jokes.length)];
+        message.channel.send(`😂 Joke: ${randomJoke}`);
+    }
+
+    if (message.content.startsWith('!poll')) {
+        const args = message.content.split(' ').slice(1);
+        const question = args.join(' ');
+
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('Poll')
+            .setDescription(question)
+            .setFooter({ text: 'React with 👍 or 👎' });
+
+        const msg = await message.channel.send({ embeds: [embed] });
+        await msg.react('👍');
+        await msg.react('👎');
+    }
+});
+
+client.login(process.env.BOT_TOKEN);
