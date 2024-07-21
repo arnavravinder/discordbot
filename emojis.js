@@ -1,4 +1,4 @@
-const { Client, Intents, REST, Routes } = require('discord.js');
+const { Client, Intents } = require('discord.js');
 require('dotenv').config();
 
 const client = new Client({
@@ -8,72 +8,39 @@ const client = new Client({
     ]
 });
 
-const commands = [
-    {
-        name: 'listemojis',
-        description: 'List all custom emojis in the server'
-    },
-    {
-        name: 'stealemoji',
-        description: 'Steal an emoji and add it to the server',
-        options: [
-            {
-                name: 'emoji',
-                type: 'STRING',
-                description: 'The emoji to steal (can be a URL or an existing emoji)',
-                required: true
-            },
-            {
-                name: 'name',
-                type: 'STRING',
-                description: 'The name for the new emoji',
-                required: true
-            }
-        ]
-    }
-];
-
-const rest = new REST({ version: '9' }).setToken(process.env.DISCORD_TOKEN);
-
-(async () => {
-    try {
-        console.log('Started refreshing application (/) commands.');
-        await rest.put(
-            Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-            { body: commands },
-        );
-        console.log('Successfully reloaded application (/) commands.');
-    } catch (error) {
-        console.error(error);
-    }
-})();
+const prefix = "!";
 
 client.once('ready', () => {
     console.log('Emoji Bot is online! 😃');
 });
 
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isCommand()) return;
+client.on('messageCreate', async message => {
+    if (message.author.bot || !message.content.startsWith(prefix)) return;
 
-    const { commandName, options } = interaction;
+    const args = message.content.slice(prefix.length).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
 
-    if (commandName === 'listemojis') {
-        const emojis = interaction.guild.emojis.cache.map(e => e.toString()).join(' ');
+    if (command === 'listemojis') {
+        const emojis = message.guild.emojis.cache.map(e => e.toString()).join(' ');
         if (emojis.length > 0) {
-            interaction.reply(`Custom emojis in this server: ${emojis}`);
+            message.channel.send(`Custom emojis in this server: ${emojis}`);
         } else {
-            interaction.reply('There are no custom emojis in this server. 😢');
+            message.channel.send('There are no custom emojis in this server. 😢');
         }
-    } else if (commandName === 'stealemoji') {
-        const emoji = options.getString('emoji');
-        const name = options.getString('name');
+    } else if (command === 'stealemoji') {
+        if (args.length < 2) {
+            return message.channel.send('Usage: !stealemoji <emoji> <name>');
+        }
+
+        const emoji = args[0];
+        const name = args[1];
 
         if (emoji.startsWith('http') || emoji.startsWith('https')) {
             try {
-                const newEmoji = await interaction.guild.emojis.create(emoji, name);
-                interaction.reply(`Emoji ${newEmoji.toString()} has been added to the server as :${name}:`);
+                const newEmoji = await message.guild.emojis.create(emoji, name);
+                message.channel.send(`Emoji ${newEmoji.toString()} has been added to the server as :${name}:`);
             } catch (error) {
-                interaction.reply('Failed to add the emoji. Please ensure the URL is correct and try again. ❌');
+                message.channel.send('Failed to add the emoji. Please ensure the URL is correct and try again. ❌');
             }
         } else {
             const emojiMatch = emoji.match(/<a?:(\w+):(\d+)>/);
@@ -81,13 +48,13 @@ client.on('interactionCreate', async interaction => {
                 const emojiId = emojiMatch[2];
                 const emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.png`;
                 try {
-                    const newEmoji = await interaction.guild.emojis.create(emojiUrl, name);
-                    interaction.reply(`Emoji ${newEmoji.toString()} has been added to the server as :${name}:`);
+                    const newEmoji = await message.guild.emojis.create(emojiUrl, name);
+                    message.channel.send(`Emoji ${newEmoji.toString()} has been added to the server as :${name}:`);
                 } catch (error) {
-                    interaction.reply('Failed to add the emoji. Please ensure the emoji is correct and try again. ❌');
+                    message.channel.send('Failed to add the emoji. Please ensure the emoji is correct and try again. ❌');
                 }
             } else {
-                interaction.reply('Invalid emoji format. Please provide a URL or a valid emoji from another server. ❌');
+                message.channel.send('Invalid emoji format. Please provide a URL or a valid emoji from another server. ❌');
             }
         }
     }
