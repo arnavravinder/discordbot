@@ -9,6 +9,7 @@ client.once('ready', () => {
 });
 
 const users = {};
+const guilds = {};
 const enemies = ['Goblin', 'Orc', 'Troll', 'Dragon'];
 
 client.on('messageCreate', async message => {
@@ -30,6 +31,7 @@ client.on('messageCreate', async message => {
                 questsCompleted: 0,
                 allies: [],
                 skills: [],
+                guild: null,
             };
             message.channel.send(`Welcome to the RPG, ${message.author.username}! Your adventure begins now. 🏰`);
         } else {
@@ -40,7 +42,7 @@ client.on('messageCreate', async message => {
     if (command === 'profile') {
         const user = users[message.author.id];
         if (user) {
-            message.channel.send(`**${user.username}'s Profile**\nLevel: ${user.level} 🏅\nExperience: ${user.experience} ⭐\nHealth: ${user.health} ❤️\nMana: ${user.mana} 🔮\nGold: ${user.gold} 💰\nInventory: ${user.inventory.join(', ') || 'Empty'}\nQuests Completed: ${user.questsCompleted} 🏆\nAllies: ${user.allies.join(', ') || 'None'}\nSkills: ${user.skills.join(', ') || 'None'}`);
+            message.channel.send(`**${user.username}'s Profile**\nLevel: ${user.level} 🏅\nExperience: ${user.experience} ⭐\nHealth: ${user.health} ❤️\nMana: ${user.mana} 🔮\nGold: ${user.gold} 💰\nInventory: ${user.inventory.join(', ') || 'Empty'}\nQuests Completed: ${user.questsCompleted} 🏆\nAllies: ${user.allies.join(', ') || 'None'}\nSkills: ${user.skills.join(', ') || 'None'}\nGuild: ${user.guild || 'None'}`);
         } else {
             message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
         }
@@ -394,6 +396,62 @@ client.on('messageCreate', async message => {
             }
         } else {
             message.channel.send(`Invalid spy command or target, ${user.username}. 🛑`);
+        }
+    }
+
+    if (command === 'guild') {
+        const subCommand = args.shift().toLowerCase();
+        if (subCommand === 'create') {
+            const guildName = args.join(' ');
+            if (guildName && !guilds[guildName]) {
+                guilds[guildName] = {
+                    name: guildName,
+                    leader: message.author.id,
+                    members: [message.author.id],
+                };
+                users[message.author.id].guild = guildName;
+                message.channel.send(`${message.author.username} created the guild "${guildName}"! 🏰`);
+            } else {
+                message.channel.send(`Invalid guild name or guild already exists. ❌`);
+            }
+        } else if (subCommand === 'join') {
+            const guildName = args.join(' ');
+            if (guildName && guilds[guildName] && !users[message.author.id].guild) {
+                guilds[guildName].members.push(message.author.id);
+                users[message.author.id].guild = guildName;
+                message.channel.send(`${message.author.username} joined the guild "${guildName}"! 🏰`);
+            } else {
+                message.channel.send(`Invalid guild name or you're already in a guild. ❌`);
+            }
+        } else if (subCommand === 'leave') {
+            const guildName = users[message.author.id].guild;
+            if (guildName) {
+                const guild = guilds[guildName];
+                guild.members = guild.members.filter(id => id !== message.author.id);
+                users[message.author.id].guild = null;
+                if (guild.leader === message.author.id) {
+                    if (guild.members.length > 0) {
+                        guild.leader = guild.members[0];
+                        message.channel.send(`${message.author.username} left the guild "${guildName}". The new leader is <@${guild.leader}>. 🏰`);
+                    } else {
+                        delete guilds[guildName];
+                        message.channel.send(`${message.author.username} left the guild "${guildName}", which has been disbanded. 🏰`);
+                    }
+                } else {
+                    message.channel.send(`${message.author.username} left the guild "${guildName}". 🏰`);
+                }
+            } else {
+                message.channel.send(`You're not in a guild. ❌`);
+            }
+        } else if (subCommand === 'list') {
+            let guildList = '**🏰 Guilds 🏰**\n';
+            for (const guildName in guilds) {
+                const guild = guilds[guildName];
+                guildList += `${guild.name} - Leader: <@${guild.leader}> - Members: ${guild.members.length}\n`;
+            }
+            message.channel.send(guildList);
+        } else {
+            message.channel.send(`Invalid guild command. ❌`);
         }
     }
 });
