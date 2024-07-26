@@ -35,6 +35,13 @@ client.on('messageCreate', async message => {
                 guild: null,
                 pets: [],
                 party: [],
+                attributes: {
+                    strength: 10,
+                    agility: 10,
+                    intelligence: 10
+                },
+                titles: [],
+                achievements: []
             };
             message.channel.send(`Welcome to the RPG, ${message.author.username}! Your adventure begins now. 🏰`);
         } else {
@@ -45,7 +52,7 @@ client.on('messageCreate', async message => {
     if (command === 'profile') {
         const user = users[message.author.id];
         if (user) {
-            message.channel.send(`**${user.username}'s Profile**\nLevel: ${user.level} 🏅\nExperience: ${user.experience} ⭐\nHealth: ${user.health} ❤️\nMana: ${user.mana} 🔮\nGold: ${user.gold} 💰\nInventory: ${user.inventory.join(', ') || 'Empty'}\nQuests Completed: ${user.questsCompleted} 🏆\nAllies: ${user.allies.join(', ') || 'None'}\nSkills: ${user.skills.join(', ') || 'None'}\nGuild: ${user.guild || 'None'}\nPets: ${user.pets.join(', ') || 'None'}\nParty: ${user.party.join(', ') || 'None'}`);
+            message.channel.send(`**${user.username}'s Profile**\nLevel: ${user.level} 🏅\nExperience: ${user.experience} ⭐\nHealth: ${user.health} ❤️\nMana: ${user.mana} 🔮\nGold: ${user.gold} 💰\nInventory: ${user.inventory.join(', ') || 'Empty'}\nQuests Completed: ${user.questsCompleted} 🏆\nAllies: ${user.allies.join(', ') || 'None'}\nSkills: ${user.skills.join(', ') || 'None'}\nGuild: ${user.guild || 'None'}\nPets: ${user.pets.join(', ') || 'None'}\nParty: ${user.party.join(', ') || 'None'}\nStrength: ${user.attributes.strength} 💪\nAgility: ${user.attributes.agility} 🏃‍♂️\nIntelligence: ${user.attributes.intelligence} 🧠\nTitles: ${user.titles.join(', ') || 'None'}\nAchievements: ${user.achievements.join(', ') || 'None'}`);
         } else {
             message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
         }
@@ -1058,6 +1065,144 @@ client.on('messageCreate', async message => {
                 message.channel.send(`${user.username} disenchanted their ${armor}. 🛡️`);
             } else {
                 message.channel.send(`You don't have that enchanted armor to disenchant, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'upgrade') {
+        const user = users[message.author.id];
+        if (user) {
+            const attribute = args[0];
+            const points = parseInt(args[1], 10);
+            if (attribute && points) {
+                if (attribute === 'strength') {
+                    user.attributes.strength += points;
+                } else if (attribute === 'agility') {
+                    user.attributes.agility += points;
+                } else if (attribute === 'intelligence') {
+                    user.attributes.intelligence += points;
+                } else {
+                    message.channel.send(`Invalid attribute, ${user.username}. ❌`);
+                    return;
+                }
+                message.channel.send(`${user.username} upgraded their ${attribute} by ${points} points! 💪`);
+            } else {
+                message.channel.send(`Please specify the attribute and points to upgrade, ${user.username}. 🛑`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'title') {
+        const user = users[message.author.id];
+        if (user) {
+            const title = args.join(' ');
+            if (title) {
+                user.titles.push(title);
+                message.channel.send(`${user.username} has earned the title: ${title}! 🏅`);
+            } else {
+                message.channel.send(`Please specify the title you want to add, ${user.username}. 🛑`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'achieve') {
+        const user = users[message.author.id];
+        if (user) {
+            const achievement = args.join(' ');
+            if (achievement) {
+                user.achievements.push(achievement);
+                message.channel.send(`${user.username} has earned the achievement: ${achievement}! 🎖️`);
+            } else {
+                message.channel.send(`Please specify the achievement you want to add, ${user.username}. 🛑`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'forge') {
+        const user = users[message.author.id];
+        if (user) {
+            const [item1, item2] = args;
+            const item1Index = user.inventory.indexOf(item1.charAt(0).toUpperCase() + item1.slice(1));
+            const item2Index = user.inventory.indexOf(item2.charAt(0).toUpperCase() + item2.slice(1));
+            if (item1Index !== -1 && item2Index !== -1) {
+                const forgedItem = ['Dragon Blade', 'Phoenix Armor', 'Unicorn Shield'][Math.floor(Math.random() * 3)];
+                user.inventory.splice(item1Index, 1);
+                user.inventory.splice(item2Index, 1);
+                user.inventory.push(forgedItem);
+                message.channel.send(`${user.username} forged a ${forgedItem} using ${item1} and ${item2}! 🔨`);
+            } else {
+                message.channel.send(`You don't have the required items to forge, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'upgrade') {
+        const user = users[message.author.id];
+        if (user) {
+            const attribute = args[0];
+            const points = parseInt(args[1], 10);
+            if (attribute && points) {
+                if (attribute === 'strength') {
+                    user.attributes.strength += points;
+                } else if (attribute === 'agility') {
+                    user.attributes.agility += points;
+                } else if (attribute === 'intelligence') {
+                    user.attributes.intelligence += points;
+                } else {
+                    message.channel.send(`Invalid attribute, ${user.username}. ❌`);
+                    return;
+                }
+                message.channel.send(`${user.username} upgraded their ${attribute} by ${points} points! 💪`);
+            } else {
+                message.channel.send(`Please specify the attribute and points to upgrade, ${user.username}. 🛑`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'exchange') {
+        const user = users[message.author.id];
+        if (user) {
+            const [item, gold] = args;
+            const itemIndex = user.inventory.indexOf(item.charAt(0).toUpperCase() + item.slice(1));
+            const goldAmount = parseInt(gold, 10);
+            if (itemIndex !== -1 && goldAmount) {
+                user.inventory.splice(itemIndex, 1);
+                user.gold += goldAmount;
+                message.channel.send(`${user.username} exchanged ${item} for ${goldAmount} gold! 💰`);
+            } else {
+                message.channel.send(`Invalid item or gold amount, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'alchemize') {
+        const user = users[message.author.id];
+        if (user) {
+            const [item1, item2] = args;
+            const item1Index = user.inventory.indexOf(item1.charAt(0).toUpperCase() + item1.slice(1));
+            const item2Index = user.inventory.indexOf(item2.charAt(0).toUpperCase() + item2.slice(1));
+            if (item1Index !== -1 && item2Index !== -1) {
+                const alchemizedItem = ['Elixir of Life', 'Potion of Strength', 'Essence of Magic'][Math.floor(Math.random() * 3)];
+                user.inventory.splice(item1Index, 1);
+                user.inventory.splice(item2Index, 1);
+                user.inventory.push(alchemizedItem);
+                message.channel.send(`${user.username} alchemized a ${alchemizedItem} using ${item1} and ${item2}! 🧪`);
+            } else {
+                message.channel.send(`You don't have the required items to alchemize, ${user.username}. ❌`);
             }
         } else {
             message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
