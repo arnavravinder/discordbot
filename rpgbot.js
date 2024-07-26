@@ -33,6 +33,7 @@ client.on('messageCreate', async message => {
                 allies: [],
                 skills: [],
                 guild: null,
+                pets: [],
             };
             message.channel.send(`Welcome to the RPG, ${message.author.username}! Your adventure begins now. 🏰`);
         } else {
@@ -43,7 +44,7 @@ client.on('messageCreate', async message => {
     if (command === 'profile') {
         const user = users[message.author.id];
         if (user) {
-            message.channel.send(`**${user.username}'s Profile**\nLevel: ${user.level} 🏅\nExperience: ${user.experience} ⭐\nHealth: ${user.health} ❤️\nMana: ${user.mana} 🔮\nGold: ${user.gold} 💰\nInventory: ${user.inventory.join(', ') || 'Empty'}\nQuests Completed: ${user.questsCompleted} 🏆\nAllies: ${user.allies.join(', ') || 'None'}\nSkills: ${user.skills.join(', ') || 'None'}\nGuild: ${user.guild || 'None'}`);
+            message.channel.send(`**${user.username}'s Profile**\nLevel: ${user.level} 🏅\nExperience: ${user.experience} ⭐\nHealth: ${user.health} ❤️\nMana: ${user.mana} 🔮\nGold: ${user.gold} 💰\nInventory: ${user.inventory.join(', ') || 'Empty'}\nQuests Completed: ${user.questsCompleted} 🏆\nAllies: ${user.allies.join(', ') || 'None'}\nSkills: ${user.skills.join(', ') || 'None'}\nGuild: ${user.guild || 'None'}\nPets: ${user.pets.join(', ') || 'None'}`);
         } else {
             message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
         }
@@ -82,7 +83,7 @@ client.on('messageCreate', async message => {
     }
 
     if (command === 'shop') {
-        message.channel.send(`🛒 **Welcome to the shop!**\n1. Health Potion (10 gold) - Type !buy health\n2. Mana Potion (10 gold) - Type !buy mana\n3. Sword (50 gold) - Type !buy sword\n4. Shield (50 gold) - Type !buy shield\n5. Spell Book (100 gold) - Type !buy spellbook`);
+        message.channel.send(`🛒 **Welcome to the shop!**\n1. Health Potion (10 gold) - Type !buy health\n2. Mana Potion (10 gold) - Type !buy mana\n3. Sword (50 gold) - Type !buy sword\n4. Shield (50 gold) - Type !buy shield\n5. Spell Book (100 gold) - Type !buy spellbook\n6. Pet Egg (100 gold) - Type !buy petegg`);
     }
 
     if (command === 'buy') {
@@ -129,6 +130,14 @@ client.on('messageCreate', async message => {
                 } else {
                     message.channel.send(`You don't have enough gold, ${user.username}. 💸`);
                 }
+            } else if (item === 'petegg') {
+                if (user.gold >= 100) {
+                    user.gold -= 100;
+                    user.inventory.push('Pet Egg');
+                    message.channel.send(`${user.username} bought a Pet Egg! 🥚`);
+                } else {
+                    message.channel.send(`You don't have enough gold, ${user.username}. 💸`);
+                }
             } else {
                 message.channel.send(`Invalid item, ${user.username}. 🛑`);
             }
@@ -153,6 +162,11 @@ client.on('messageCreate', async message => {
                     if (user.mana > 50) user.mana = 50;
                     user.inventory.splice(itemIndex, 1);
                     message.channel.send(`${user.username} used a Mana Potion! 💊 Mana is now ${user.mana}.`);
+                } else if (item === 'petegg') {
+                    const pet = ['Dragon', 'Phoenix', 'Unicorn'][Math.floor(Math.random() * 3)];
+                    user.pets.push(pet);
+                    user.inventory.splice(itemIndex, 1);
+                    message.channel.send(`${user.username} hatched a ${pet} from the Pet Egg! 🐣`);
                 } else {
                     message.channel.send(`Invalid item usage, ${user.username}. 🛑`);
                 }
@@ -544,6 +558,150 @@ client.on('messageCreate', async message => {
             }
         } else {
             message.channel.send(`Invalid guild war command or target, ${user.username}. 🛑`);
+        }
+    }
+
+    if (command === 'craft') {
+        const user = users[message.author.id];
+        if (user) {
+            const item1 = args[0];
+            const item2 = args[1];
+            const item1Index = user.inventory.indexOf(item1.charAt(0).toUpperCase() + item1.slice(1));
+            const item2Index = user.inventory.indexOf(item2.charAt(0).toUpperCase() + item2.slice(1));
+            if (item1Index !== -1 && item2Index !== -1) {
+                const craftedItem = ['Magic Wand', 'Enchanted Sword', 'Mystic Shield'][Math.floor(Math.random() * 3)];
+                user.inventory.splice(item1Index, 1);
+                user.inventory.splice(item2Index, 1);
+                user.inventory.push(craftedItem);
+                message.channel.send(`${user.username} crafted a ${craftedItem} using ${item1} and ${item2}! 🛠️`);
+            } else {
+                message.channel.send(`You don't have the required items to craft, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'tame') {
+        const user = users[message.author.id];
+        if (user) {
+            const pet = ['Dragon', 'Phoenix', 'Unicorn'][Math.floor(Math.random() * 3)];
+            const tameOutcome = Math.random();
+            if (tameOutcome < 0.5) {
+                user.pets.push(pet);
+                message.channel.send(`${user.username} tamed a wild ${pet}! 🐾`);
+            } else {
+                message.channel.send(`${user.username} failed to tame the wild ${pet}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'trainpet') {
+        const user = users[message.author.id];
+        if (user) {
+            const pet = user.pets[Math.floor(Math.random() * user.pets.length)];
+            if (pet) {
+                const trainOutcome = Math.random();
+                if (trainOutcome < 0.5) {
+                    const skill = ['Flying', 'Breathing Fire', 'Healing'][Math.floor(Math.random() * 3)];
+                    user.skills.push(`${pet} - ${skill}`);
+                    message.channel.send(`${user.username} trained ${pet} and it learned ${skill}! 🐾`);
+                } else {
+                    message.channel.send(`${user.username} tried to train ${pet}, but it didn't learn anything. ❌`);
+                }
+            } else {
+                message.channel.send(`You don't have any pets to train, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'petbattle') {
+        const user = users[message.author.id];
+        const targetUser = args[0];
+        if (user && users[targetUser]) {
+            const userPet = user.pets[Math.floor(Math.random() * user.pets.length)];
+            const targetPet = users[targetUser].pets[Math.floor(Math.random() * users[targetUser].pets.length)];
+            if (userPet && targetPet) {
+                const battleOutcome = Math.random();
+                if (battleOutcome < 0.5) {
+                    message.channel.send(`${user.username}'s ${userPet} defeated ${targetUser}'s ${targetPet} in a pet battle! 🏆`);
+                } else {
+                    message.channel.send(`${targetUser}'s ${targetPet} defeated ${user.username}'s ${userPet} in a pet battle! 🏆`);
+                }
+            } else {
+                message.channel.send(`One of the users doesn't have a pet to battle with. ❌`);
+            }
+        } else {
+            message.channel.send(`Invalid pet battle command or target, ${user.username}. 🛑`);
+        }
+    }
+
+    if (command === 'feed') {
+        const user = users[message.author.id];
+        if (user) {
+            const pet = user.pets[Math.floor(Math.random() * user.pets.length)];
+            if (pet) {
+                const food = args[0];
+                if (['Meat', 'Fish', 'Fruit'].includes(food)) {
+                    message.channel.send(`${user.username} fed ${pet} with ${food}. ${pet} is happy! 🐾`);
+                } else {
+                    message.channel.send(`Invalid food item, ${user.username}. ❌`);
+                }
+            } else {
+                message.channel.send(`You don't have any pets to feed, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'adventure') {
+        const user = users[message.author.id];
+        if (user) {
+            const adventureOutcome = Math.random();
+            if (adventureOutcome < 0.3) {
+                const goldFound = Math.floor(Math.random() * 40) + 20;
+                user.gold += goldFound;
+                message.channel.send(`${user.username} went on an adventure and found ${goldFound} gold! 🏰`);
+            } else if (adventureOutcome < 0.6) {
+                const experienceGained = Math.floor(Math.random() * 40) + 20;
+                user.experience += experienceGained;
+                message.channel.send(`${user.username} went on an adventure and gained ${experienceGained} experience! ⭐`);
+            } else if (adventureOutcome < 0.9) {
+                const itemFound = ['Magic Potion', 'Golden Armor', 'Mystic Staff'][Math.floor(Math.random() * 3)];
+                user.inventory.push(itemFound);
+                message.channel.send(`${user.username} went on an adventure and found a ${itemFound}! 🌟`);
+            } else {
+                const healthLost = Math.floor(Math.random() * 30) + 20;
+                user.health -= healthLost;
+                if (user.health <= 0) {
+                    message.channel.send(`${user.username} got injured on the adventure and lost ${healthLost} health, leading to their demise. 🪦`);
+                    delete users[message.author.id];
+                } else {
+                    message.channel.send(`${user.username} got injured on the adventure and lost ${healthLost} health. ❤️`);
+                }
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'party') {
+        const user = users[message.author.id];
+        if (user) {
+            const partyMembers = args;
+            if (partyMembers.length > 0) {
+                user.party = partyMembers;
+                message.channel.send(`${user.username} formed a party with ${partyMembers.join(', ')}! 🎉`);
+            } else {
+                message.channel.send(`Please specify the members you want to add to your party, ${user.username}. 🛑`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
         }
     }
 });
