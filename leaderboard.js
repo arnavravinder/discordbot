@@ -165,7 +165,84 @@ async function getUserMessageCount(userId) {
     });
 }
 
+const statsCommand = {
+    data: new SlashCommandBuilder()
+        .setName('stats')
+        .setDescription('Show overall bot statistics'),
+    async execute(interaction) {
+        const totalMessages = await getTotalMessages();
+        await interaction.reply(`Total messages sent: ${totalMessages}`);
+    },
+};
+
+async function getTotalMessages() {
+    return new Promise((resolve, reject) => {
+        db.get('SELECT SUM(messageCount) AS totalMessages FROM leaderboard', [], (err, row) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+            resolve(row.totalMessages || 0);
+        });
+    });
+}
+
+const userStatsCommand = {
+    data: new SlashCommandBuilder()
+        .setName('userstats')
+        .setDescription('Show message count for a specific user')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('User to check')
+                .setRequired(true)),
+    async execute(interaction) {
+        const user = interaction.options.getUser('user');
+        const messageCount = await getUserMessageCount(user.id);
+        await interaction.reply(`<@${user.id}> has ${messageCount} messages.`);
+    },
+};
+
 client.commands.set(leaderboardCommand.data.name, leaderboardCommand);
 client.commands.set(resetCommand.data.name, resetCommand);
 client.commands.set(helpCommand.data.name, helpCommand);
 client.commands.set(topCommand.data.name, topCommand);
+client.commands.set(statsCommand.data.name, statsCommand);
+client.commands.set(userStatsCommand.data.name, userStatsCommand);
+
+client.on(Events.InteractionCreate, async interaction => {
+    if (!interaction.isCommand()) return;
+
+    const command = client.commands.get(interaction.commandName);
+
+    if (!command) return;
+
+    try {
+        await command.execute(interaction);
+    } catch (error) {
+        console.error(error);
+        await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+    }
+});
+
+client.on(Events.MessageCreate, async message => {
+    if (message.author.bot) return;
+
+    db.run('INSERT INTO leaderboard (userId, messageCount) VALUES (?, 1) ON CONFLICT(userId) DO UPDATE SET messageCount = messageCount + 1', [message.author.id], err => {
+        if (err) console.error(err.message);
+    });
+
+    if (message.content === '!leaderboard') {
+        const leaderboard = await getLeaderboard();
+        const row = new MessageActionRow()
+            .addComponents(
+                new MessageButton()
+                    .setCustomId('refresh')
+                    .setLabel('Refresh')
+                    .setStyle('PRIMARY')
+            );
+
+        message.channel.send({ content: leaderboard, components: [row] });
+    }
+});
+
+client.login('ur api key'); //add key
