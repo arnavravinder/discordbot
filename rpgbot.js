@@ -11,6 +11,7 @@ client.once('ready', () => {
 const users = {};
 const guilds = {};
 const enemies = ['Goblin', 'Orc', 'Troll', 'Dragon'];
+const dungeons = ['Cave of Shadows', 'Forest of Doom', 'Castle of Despair'];
 
 client.on('messageCreate', async message => {
     if (!message.content.startsWith(PREFIX) || message.author.bot) return;
@@ -452,6 +453,97 @@ client.on('messageCreate', async message => {
             message.channel.send(guildList);
         } else {
             message.channel.send(`Invalid guild command. ❌`);
+        }
+    }
+
+    if (command === 'dungeon') {
+        const user = users[message.author.id];
+        if (user) {
+            const dungeon = dungeons[Math.floor(Math.random() * dungeons.length)];
+            const dungeonOutcome = Math.random();
+            if (dungeonOutcome < 0.5) {
+                const goldFound = Math.floor(Math.random() * 50) + 25;
+                user.gold += goldFound;
+                message.channel.send(`${user.username} ventured into the ${dungeon} and found ${goldFound} gold! 🏰`);
+            } else if (dungeonOutcome < 0.8) {
+                const experienceGained = Math.floor(Math.random() * 50) + 25;
+                user.experience += experienceGained;
+                message.channel.send(`${user.username} ventured into the ${dungeon} and gained ${experienceGained} experience! ⭐`);
+            } else {
+                const healthLost = Math.floor(Math.random() * 30) + 20;
+                user.health -= healthLost;
+                if (user.health <= 0) {
+                    message.channel.send(`${user.username} perished in the ${dungeon} and lost ${healthLost} health. 🪦`);
+                    delete users[message.author.id];
+                } else {
+                    message.channel.send(`${user.username} ventured into the ${dungeon} and lost ${healthLost} health. ❤️`);
+                }
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'event') {
+        const user = users[message.author.id];
+        if (user) {
+            const eventOutcome = Math.random();
+            if (eventOutcome < 0.3) {
+                const goldFound = Math.floor(Math.random() * 30) + 15;
+                user.gold += goldFound;
+                message.channel.send(`${user.username} participated in an event and found ${goldFound} gold! 🎉`);
+            } else if (eventOutcome < 0.6) {
+                const experienceGained = Math.floor(Math.random() * 30) + 15;
+                user.experience += experienceGained;
+                message.channel.send(`${user.username} participated in an event and gained ${experienceGained} experience! ⭐`);
+            } else if (eventOutcome < 0.9) {
+                const itemFound = ['Magic Scroll', 'Enchanted Armor', 'Mystic Ring'][Math.floor(Math.random() * 3)];
+                user.inventory.push(itemFound);
+                message.channel.send(`${user.username} participated in an event and found a ${itemFound}! 🌟`);
+            } else {
+                const healthLost = Math.floor(Math.random() * 20) + 10;
+                user.health -= healthLost;
+                if (user.health <= 0) {
+                    message.channel.send(`${user.username} got injured in the event and lost ${healthLost} health, leading to their demise. 🪦`);
+                    delete users[message.author.id];
+                } else {
+                    message.channel.send(`${user.username} got injured in the event and lost ${healthLost} health. ❤️`);
+                }
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'guildwar') {
+        const user = users[message.author.id];
+        const targetGuildName = args.join(' ');
+        if (user && users[message.author.id].guild && guilds[targetGuildName]) {
+            const userGuildName = users[message.author.id].guild;
+            const userGuild = guilds[userGuildName];
+            const targetGuild = guilds[targetGuildName];
+
+            if (userGuildName !== targetGuildName) {
+                const warOutcome = Math.random();
+                if (warOutcome < 0.5) {
+                    const goldWon = Math.floor(Math.random() * 100) + 50;
+                    userGuild.members.forEach(memberId => {
+                        users[memberId].gold += goldWon / userGuild.members.length;
+                    });
+                    message.channel.send(`${userGuild.name} won the war against ${targetGuild.name} and claimed ${goldWon} gold! ⚔️`);
+                } else {
+                    const goldLost = Math.floor(Math.random() * 100) + 50;
+                    userGuild.members.forEach(memberId => {
+                        users[memberId].gold -= goldLost / userGuild.members.length;
+                        if (users[memberId].gold < 0) users[memberId].gold = 0;
+                    });
+                    message.channel.send(`${userGuild.name} lost the war against ${targetGuild.name} and lost ${goldLost} gold. 🛡️`);
+                }
+            } else {
+                message.channel.send(`You cannot declare war on your own guild, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`Invalid guild war command or target, ${user.username}. 🛑`);
         }
     }
 });
