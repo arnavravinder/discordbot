@@ -34,6 +34,7 @@ client.on('messageCreate', async message => {
                 skills: [],
                 guild: null,
                 pets: [],
+                party: [],
             };
             message.channel.send(`Welcome to the RPG, ${message.author.username}! Your adventure begins now. 🏰`);
         } else {
@@ -44,7 +45,7 @@ client.on('messageCreate', async message => {
     if (command === 'profile') {
         const user = users[message.author.id];
         if (user) {
-            message.channel.send(`**${user.username}'s Profile**\nLevel: ${user.level} 🏅\nExperience: ${user.experience} ⭐\nHealth: ${user.health} ❤️\nMana: ${user.mana} 🔮\nGold: ${user.gold} 💰\nInventory: ${user.inventory.join(', ') || 'Empty'}\nQuests Completed: ${user.questsCompleted} 🏆\nAllies: ${user.allies.join(', ') || 'None'}\nSkills: ${user.skills.join(', ') || 'None'}\nGuild: ${user.guild || 'None'}\nPets: ${user.pets.join(', ') || 'None'}`);
+            message.channel.send(`**${user.username}'s Profile**\nLevel: ${user.level} 🏅\nExperience: ${user.experience} ⭐\nHealth: ${user.health} ❤️\nMana: ${user.mana} 🔮\nGold: ${user.gold} 💰\nInventory: ${user.inventory.join(', ') || 'Empty'}\nQuests Completed: ${user.questsCompleted} 🏆\nAllies: ${user.allies.join(', ') || 'None'}\nSkills: ${user.skills.join(', ') || 'None'}\nGuild: ${user.guild || 'None'}\nPets: ${user.pets.join(', ') || 'None'}\nParty: ${user.party.join(', ') || 'None'}`);
         } else {
             message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
         }
@@ -699,6 +700,133 @@ client.on('messageCreate', async message => {
                 message.channel.send(`${user.username} formed a party with ${partyMembers.join(', ')}! 🎉`);
             } else {
                 message.channel.send(`Please specify the members you want to add to your party, ${user.username}. 🛑`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'donate') {
+        const user = users[message.author.id];
+        const [amount, targetUser] = args;
+        if (user && users[targetUser]) {
+            const goldAmount = parseInt(amount, 10);
+            if (user.gold >= goldAmount) {
+                user.gold -= goldAmount;
+                users[targetUser].gold += goldAmount;
+                message.channel.send(`${user.username} donated ${goldAmount} gold to ${targetUser}. 💸`);
+            } else {
+                message.channel.send(`You don't have enough gold to donate, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`Invalid donate command or target, ${user.username}. 🛑`);
+        }
+    }
+
+    if (command === 'steal') {
+        const user = users[message.author.id];
+        const targetUser = args[0];
+        if (user && users[targetUser]) {
+            const stealOutcome = Math.random();
+            if (stealOutcome < 0.5) {
+                const goldStolen = Math.floor(Math.random() * 20) + 10;
+                if (users[targetUser].gold >= goldStolen) {
+                    users[targetUser].gold -= goldStolen;
+                    user.gold += goldStolen;
+                    message.channel.send(`${user.username} successfully stole ${goldStolen} gold from ${targetUser}. 💸`);
+                } else {
+                    message.channel.send(`${targetUser} doesn't have enough gold to steal, ${user.username}. ❌`);
+                }
+            } else {
+                const healthLost = Math.floor(Math.random() * 10) + 5;
+                user.health -= healthLost;
+                if (user.health <= 0) {
+                    message.channel.send(`${user.username} failed to steal and lost ${healthLost} health, leading to their demise. 🪦`);
+                    delete users[message.author.id];
+                } else {
+                    message.channel.send(`${user.username} failed to steal and lost ${healthLost} health. ❤️`);
+                }
+            }
+        } else {
+            message.channel.send(`Invalid steal command or target, ${user.username}. 🛑`);
+        }
+    }
+
+    if (command === 'duel') {
+        const user = users[message.author.id];
+        const targetUser = args[0];
+        if (user && users[targetUser]) {
+            const duelOutcome = Math.random();
+            if (duelOutcome < 0.5) {
+                const goldWon = Math.floor(Math.random() * 50) + 25;
+                if (users[targetUser].gold >= goldWon) {
+                    users[targetUser].gold -= goldWon;
+                    user.gold += goldWon;
+                    message.channel.send(`${user.username} won the duel against ${targetUser} and claimed ${goldWon} gold! ⚔️`);
+                } else {
+                    message.channel.send(`${targetUser} doesn't have enough gold to duel, ${user.username}. ❌`);
+                }
+            } else {
+                const healthLost = Math.floor(Math.random() * 10) + 5;
+                user.health -= healthLost;
+                if (user.health <= 0) {
+                    message.channel.send(`${user.username} lost the duel and lost ${healthLost} health, leading to their demise. 🪦`);
+                    delete users[message.author.id];
+                } else {
+                    message.channel.send(`${user.username} lost the duel and lost ${healthLost} health. ❤️`);
+                }
+            }
+        } else {
+            message.channel.send(`Invalid duel command or target, ${user.username}. 🛑`);
+        }
+    }
+
+    if (command === 'gamble') {
+        const user = users[message.author.id];
+        const amount = parseInt(args[0], 10);
+        if (user) {
+            if (user.gold >= amount) {
+                const gambleOutcome = Math.random();
+                if (gambleOutcome < 0.5) {
+                    user.gold += amount;
+                    message.channel.send(`${user.username} won the gamble and doubled their bet, gaining ${amount} gold! 💰`);
+                } else {
+                    user.gold -= amount;
+                    message.channel.send(`${user.username} lost the gamble and lost ${amount} gold. 💸`);
+                }
+            } else {
+                message.channel.send(`You don't have enough gold to gamble, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'tournament') {
+        const user = users[message.author.id];
+        if (user) {
+            const tournamentOutcome = Math.random();
+            if (tournamentOutcome < 0.3) {
+                const goldWon = Math.floor(Math.random() * 100) + 50;
+                user.gold += goldWon;
+                message.channel.send(`${user.username} won the tournament and gained ${goldWon} gold! 🏆`);
+            } else if (tournamentOutcome < 0.6) {
+                const experienceGained = Math.floor(Math.random() * 50) + 25;
+                user.experience += experienceGained;
+                message.channel.send(`${user.username} participated in the tournament and gained ${experienceGained} experience! ⭐`);
+            } else if (tournamentOutcome < 0.9) {
+                const itemWon = ['Championship Sword', 'Champion Armor', 'Champion Ring'][Math.floor(Math.random() * 3)];
+                user.inventory.push(itemWon);
+                message.channel.send(`${user.username} participated in the tournament and won a ${itemWon}! 🌟`);
+            } else {
+                const healthLost = Math.floor(Math.random() * 20) + 10;
+                user.health -= healthLost;
+                if (user.health <= 0) {
+                    message.channel.send(`${user.username} got injured in the tournament and lost ${healthLost} health, leading to their demise. 🪦`);
+                    delete users[message.author.id];
+                } else {
+                    message.channel.send(`${user.username} got injured in the tournament and lost ${healthLost} health. ❤️`);
+                }
             }
         } else {
             message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
