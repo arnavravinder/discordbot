@@ -1,38 +1,48 @@
-const { Client, GatewayIntentBits, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Events, PermissionsBitField } = require('discord.js');
 const axios = require('axios');
 const { format } = require('date-fns');
 const schedule = require('node-schedule');
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
+const express = require('express');
+const bodyParser = require('body-parser');
 
 const client = new Client({ intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMessageContent,
+    GatewayIntentBits.GuildPresences,
 ] });
 
-const DISCORD_TOKEN = 'ur api key'; 
+const DISCORD_TOKEN = 'ur api key';
 const DISCORD_CHANNEL_ID = 'your-discord-channel-id';
-const TWITCH_CLIENT_ID = 'ur twitch client id'; 
-const TWITCH_OAUTH_TOKEN = 'ur twitch oauth token'; 
-const YOUTUBE_API_KEY = 'ur youtube api key'; 
+const TWITCH_CLIENT_ID = 'ur twitch client id';
+const TWITCH_OAUTH_TOKEN = 'ur twitch oauth token';
+const YOUTUBE_API_KEY = 'ur youtube api key';
 const YOUTUBE_CHANNEL_ID = 'your-youtube-channel-id';
-const TROVO_CLIENT_ID = 'ur trovo client id'; 
-const TROVO_OAUTH_TOKEN = 'ur trovo oauth token'; 
-const FACEBOOK_PAGE_ACCESS_TOKEN = 'ur facebook page access token'; 
+const TROVO_CLIENT_ID = 'ur trovo client id';
+const TROVO_OAUTH_TOKEN = 'ur trovo oauth token';
+const FACEBOOK_PAGE_ACCESS_TOKEN = 'ur facebook page access token';
 const FACEBOOK_PAGE_ID = 'your-facebook-page-id';
 const LOG_FILE_PATH = path.join(__dirname, 'announcement_logs.txt');
 const SCHEDULE_FILE_PATH = path.join(__dirname, 'scheduled_announcements.json');
 const USERS_FILE_PATH = path.join(__dirname, 'users.json');
 const TEMPLATES_FILE_PATH = path.join(__dirname, 'templates.json');
+const WEBHOOKS_FILE_PATH = path.join(__dirname, 'webhooks.json');
+const APP_PORT = 3000;
+
+const app = express();
+app.use(bodyParser.json());
 
 client.once(Events.ClientReady, () => {
     console.log(`Logged in as ${client.user.tag}!`);
     loadScheduledAnnouncements();
     loadUsers();
     loadTemplates();
+    loadWebhooks();
+    setupWebhookServer();
 });
 
 client.on(Events.MessageCreate, async message => {
@@ -180,6 +190,7 @@ async function sendAnnouncements(content) {
         await sendYouTubeAnnouncement(content);
         await sendTrovoAnnouncement(content);
         await sendFacebookAnnouncement(content);
+        await triggerWebhooks(content);
     } catch (error) {
         console.error('Error sending announcements:', error);
         throw error;
@@ -262,25 +273,28 @@ async function sendFacebookAnnouncement(content) {
     }
 }
 
-async function logAnnouncement(content) {
+async function triggerWebhooks(content) {
     try {
-        const logEntry = `${format(new Date(), "yyyy-MM-dd HH:mm:ss")}: ${content}\n`;
-        fs.appendFileSync(LOG_FILE_PATH, logEntry);
+        const webhooks = JSON.parse(fs.readFileSync(WEBHOOKS_FILE_PATH, 'utf8'));
+        webhooks.forEach(async (webhook) => {
+            await axios.post(webhook.url, { content });
+        });
     } catch (error) {
-        console.error('Error logging announcement:', error);
+        console.error('Error triggering webhooks:', error);
     }
 }
 
-function formatAnnouncement(content) {
-    return `📢 **New Announcement** 📢\n\n${content}\n\nStay tuned for more updates!`;
+function logAnnouncement(content) {
+    fs.appendFileSync(LOG_FILE_PATH, `${format(new Date(), "yyyy-MM-dd HH:mm:ss")} - ${content}\n`);
 }
 
-async function scheduleAnnouncement(content, date) {
+function scheduleAnnouncement(content, date) {
     try {
         const formattedDate = format(new Date(date), "yyyy-MM-ddTHH:mm:ssZ");
         schedule.scheduleJob(formattedDate, async () => {
             try {
                 await sendAnnouncements(content);
+                logAnnouncement(content);
             } catch (error) {
                 console.error('Error sending scheduled announcement:', error);
             }
@@ -397,4 +411,69 @@ function loadTemplates() {
     } catch (error) {
         console.error('Error loading templates:', error);
     }
+}
+
+function saveWebhook(url) {
+    try {
+        let webhooks = [];
+        if (fs.existsSync(WEBHOOKS_FILE_PATH)) {
+            webhooks = JSON.parse(fs.readFileSync(WEBHOOKS_FILE_PATH, 'utf8'));
+        }
+        webhooks.push({ url });
+        fs.writeFileSync(WEBHOOKS_FILE_PATH, JSON.stringify(webhooks, null, 2));
+    } catch (error) {
+        console.error('Error saving webhook:', error);
+        throw error;
+    }
+}
+
+function removeWebhook(url) {
+    try {
+        let webhooks = [];
+        if (fs.existsSync(WEBHOOKS_FILE_PATH)) {
+            webhooks = JSON.parse(fs.readFileSync(WEBHOOKS_FILE_PATH, 'utf8'));
+        }
+        webhooks = webhooks.filter(webhook => webhook.url !== url);
+        fs.writeFileSync(WEBHOOKS_FILE_PATH, JSON.stringify(webhooks, null, 2));
+    } catch (error) {
+        console.error('Error removing webhook:', error);
+        throw error;
+    }
+}
+
+function loadWebhooks() {
+    try {
+        if (fs.existsSync(WEBHOOKS_FILE_PATH)) {
+            const webhooks = JSON.parse(fs.readFileSync(WEBHOOKS_FILE_PATH, 'utf8'));
+            console.log(`Loaded ${webhooks.length} webhooks.`);
+        }
+    } catch (error) {
+        console.error('Error loading webhooks:', error);
+    }
+}
+
+function setupWebhookServer() {
+    app.post('/webhook', (req, res) => {
+        const { url } = req.body;
+        if (url) {
+            saveWebhook(url);
+            res.status(200).send('Webhook URL saved.');
+        } else {
+            res.status(400).send('No URL provided.');
+        }
+    });
+
+    app.delete('/webhook', (req, res) => {
+        const { url } = req.body;
+        if (url) {
+            removeWebhook(url);
+            res.status(200).send('Webhook URL removed.');
+        } else {
+            res.status(400).send('No URL provided.');
+        }
+    });
+
+    app.listen(APP_PORT, () => {
+        console.log(`Webhook server running on port ${APP_PORT}`);
+    });
 }
