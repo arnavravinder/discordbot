@@ -832,6 +832,237 @@ client.on('messageCreate', async message => {
             message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
         }
     }
+
+    if (command === 'message') {
+        const user = users[message.author.id];
+        if (user) {
+            const [targetUserId, ...messageContent] = args;
+            if (users[targetUserId]) {
+                message.channel.send(`Message from ${user.username} to ${users[targetUserId].username}: ${messageContent.join(' ')}`);
+            } else {
+                message.channel.send(`Invalid user to message, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'gather') {
+        const user = users[message.author.id];
+        if (user) {
+            const gatheringOutcome = Math.random();
+            if (gatheringOutcome < 0.4) {
+                const resourceFound = ['Wood', 'Stone', 'Herbs'][Math.floor(Math.random() * 3)];
+                user.inventory.push(resourceFound);
+                message.channel.send(`${user.username} gathered ${resourceFound} from the environment! 🌿`);
+            } else {
+                const healthLost = Math.floor(Math.random() * 10) + 5;
+                user.health -= healthLost;
+                if (user.health <= 0) {
+                    message.channel.send(`${user.username} got injured while gathering and lost ${healthLost} health, leading to their demise. 🪦`);
+                    delete users[message.author.id];
+                } else {
+                    message.channel.send(`${user.username} got injured while gathering and lost ${healthLost} health. ❤️`);
+                }
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'fortify') {
+        const user = users[message.author.id];
+        if (user) {
+            const fortifyOutcome = Math.random();
+            if (fortifyOutcome < 0.5) {
+                const defenseBoost = Math.floor(Math.random() * 20) + 10;
+                user.health += defenseBoost;
+                if (user.health > 100) user.health = 100;
+                message.channel.send(`${user.username} fortified their defenses and gained ${defenseBoost} health! 🛡️`);
+            } else {
+                const healthLost = Math.floor(Math.random() * 10) + 5;
+                user.health -= healthLost;
+                if (user.health <= 0) {
+                    message.channel.send(`${user.username} failed to fortify and lost ${healthLost} health, leading to their demise. 🪦`);
+                    delete users[message.author.id];
+                } else {
+                    message.channel.send(`${user.username} failed to fortify and lost ${healthLost} health. ❤️`);
+                }
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'enchant') {
+        const user = users[message.author.id];
+        if (user) {
+            const item = args.join(' ');
+            const itemIndex = user.inventory.indexOf(item.charAt(0).toUpperCase() + item.slice(1));
+            if (itemIndex !== -1) {
+                const enchantment = ['Flame', 'Ice', 'Lightning'][Math.floor(Math.random() * 3)];
+                user.inventory[itemIndex] = `${enchantment} ${item}`;
+                message.channel.send(`${user.username} enchanted their ${item} with ${enchantment}! 🔮`);
+            } else {
+                message.channel.send(`You don't have that item to enchant, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'disenchant') {
+        const user = users[message.author.id];
+        if (user) {
+            const item = args.join(' ');
+            const itemIndex = user.inventory.indexOf(item.charAt(0).toUpperCase() + item.slice(1));
+            if (itemIndex !== -1 && user.inventory[itemIndex].includes(' ')) {
+                user.inventory[itemIndex] = user.inventory[itemIndex].split(' ').slice(1).join(' ');
+                message.channel.send(`${user.username} disenchanted their ${item}. 🔮`);
+            } else {
+                message.channel.send(`You don't have that enchanted item to disenchant, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'rescue') {
+        const user = users[message.author.id];
+        const targetUser = args[0];
+        if (user && users[targetUser]) {
+            const rescueOutcome = Math.random();
+            if (rescueOutcome < 0.5) {
+                const healthGained = Math.floor(Math.random() * 20) + 10;
+                users[targetUser].health += healthGained;
+                if (users[targetUser].health > 100) users[targetUser].health = 100;
+                message.channel.send(`${user.username} rescued ${targetUser} and restored ${healthGained} health! ❤️`);
+            } else {
+                const healthLost = Math.floor(Math.random() * 10) + 5;
+                user.health -= healthLost;
+                if (user.health <= 0) {
+                    message.channel.send(`${user.username} failed to rescue and lost ${healthLost} health, leading to their demise. 🪦`);
+                    delete users[message.author.id];
+                } else {
+                    message.channel.send(`${user.username} failed to rescue and lost ${healthLost} health. ❤️`);
+                }
+            }
+        } else {
+            message.channel.send(`Invalid rescue command or target, ${user.username}. 🛑`);
+        }
+    }
+
+    if (command === 'research') {
+        const user = users[message.author.id];
+        if (user) {
+            const researchOutcome = Math.random();
+            if (researchOutcome < 0.5) {
+                const newSkill = ['Alchemy', 'Herbology', 'Runes'][Math.floor(Math.random() * 3)];
+                user.skills.push(newSkill);
+                message.channel.send(`${user.username} researched and learned ${newSkill}! 📚`);
+            } else {
+                const healthLost = Math.floor(Math.random() * 10) + 5;
+                user.health -= healthLost;
+                if (user.health <= 0) {
+                    message.channel.send(`${user.username} got injured while researching and lost ${healthLost} health, leading to their demise. 🪦`);
+                    delete users[message.author.id];
+                } else {
+                    message.channel.send(`${user.username} got injured while researching and lost ${healthLost} health. ❤️`);
+                }
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'spy') {
+        const user = users[message.author.id];
+        const targetUser = args[0];
+        if (user && users[targetUser]) {
+            const spyOutcome = Math.random();
+            if (spyOutcome < 0.5) {
+                message.channel.send(`${user.username} spied on ${targetUser} and saw their profile:\nLevel: ${users[targetUser].level}\nHealth: ${users[targetUser].health}\nMana: ${users[targetUser].mana}\nGold: ${users[targetUser].gold}\nInventory: ${users[targetUser].inventory.join(', ') || 'Empty'}\nSkills: ${users[targetUser].skills.join(', ') || 'None'}`);
+            } else {
+                message.channel.send(`${user.username} failed to spy on ${targetUser}. ❌`);
+            }
+        } else {
+            message.channel.send(`Invalid spy command or target, ${user.username}. 🛑`);
+        }
+    }
+
+    if (command === 'sacrifice') {
+        const user = users[message.author.id];
+        if (user) {
+            const healthLost = Math.floor(Math.random() * 20) + 10;
+            user.health -= healthLost;
+            if (user.health <= 0) {
+                message.channel.send(`${user.username} sacrificed their health (${healthLost} lost) and died. 🪦`);
+                delete users[message.author.id];
+            } else {
+                const experienceGained = Math.floor(Math.random() * 30) + 20;
+                user.experience += experienceGained;
+                message.channel.send(`${user.username} sacrificed their health (${healthLost} lost) and gained ${experienceGained} experience! 🩸`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'brew') {
+        const user = users[message.author.id];
+        if (user) {
+            const brewOutcome = Math.random();
+            if (brewOutcome < 0.5) {
+                const potion = ['Healing Potion', 'Mana Potion', 'Strength Potion'][Math.floor(Math.random() * 3)];
+                user.inventory.push(potion);
+                message.channel.send(`${user.username} brewed a ${potion}! 🧪`);
+            } else {
+                const healthLost = Math.floor(Math.random() * 10) + 5;
+                user.health -= healthLost;
+                if (user.health <= 0) {
+                    message.channel.send(`${user.username} failed to brew a potion and lost ${healthLost} health, leading to their demise. 🪦`);
+                    delete users[message.author.id];
+                } else {
+                    message.channel.send(`${user.username} failed to brew a potion and lost ${healthLost} health. ❤️`);
+                }
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'enchantarmor') {
+        const user = users[message.author.id];
+        if (user) {
+            const armor = args.join(' ');
+            const itemIndex = user.inventory.indexOf(armor.charAt(0).toUpperCase() + armor.slice(1));
+            if (itemIndex !== -1) {
+                const enchantment = ['Fire Resistance', 'Ice Resistance', 'Lightning Resistance'][Math.floor(Math.random() * 3)];
+                user.inventory[itemIndex] = `${enchantment} ${armor}`;
+                message.channel.send(`${user.username} enchanted their ${armor} with ${enchantment}! 🛡️`);
+            } else {
+                message.channel.send(`You don't have that armor to enchant, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
+
+    if (command === 'disenchantarmor') {
+        const user = users[message.author.id];
+        if (user) {
+            const armor = args.join(' ');
+            const itemIndex = user.inventory.indexOf(armor.charAt(0).toUpperCase() + armor.slice(1));
+            if (itemIndex !== -1 && user.inventory[itemIndex].includes(' ')) {
+                user.inventory[itemIndex] = user.inventory[itemIndex].split(' ').slice(1).join(' ');
+                message.channel.send(`${user.username} disenchanted their ${armor}. 🛡️`);
+            } else {
+                message.channel.send(`You don't have that enchanted armor to disenchant, ${user.username}. ❌`);
+            }
+        } else {
+            message.channel.send(`You need to start your adventure first, ${message.author.username}! Type !start to begin. 🗡️`);
+        }
+    }
 });
 
 client.login('held'); //enter api key
