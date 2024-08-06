@@ -72,3 +72,72 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
+client.on('messageReactionAdd', async (reaction, user) => {
+    if (user.bot) return;
+
+    const { message, emoji } = reaction;
+    const member = message.guild.members.cache.get(user.id);
+
+    if (emoji.name === '🟢') {
+        const role = message.guild.roles.cache.find(role => role.name === 'GreenRole');
+        await member.roles.add(role);
+    } else if (emoji.name === '🔵') {
+        const role = message.guild.roles.cache.find(role => role.name === 'BlueRole');
+        await member.roles.add(role);
+    }
+});
+
+client.on('messageReactionRemove', async (reaction, user) => {
+    if (user.bot) return;
+
+    const { message, emoji } = reaction;
+    const member = message.guild.members.cache.get(user.id);
+
+    if (emoji.name === '🟢') {
+        const role = message.guild.roles.cache.find(role => role.name === 'GreenRole');
+        await member.roles.remove(role);
+    } else if (emoji.name === '🔵') {
+        const role = message.guild.roles.cache.find(role => role.name === 'BlueRole');
+        await member.roles.remove(role);
+    }
+});
+
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isButton()) return;
+
+    if (interaction.customId === 'create_ticket') {
+        const channel = await interaction.guild.channels.create({
+            name: `ticket-${interaction.user.username}`,
+            type: 'GUILD_TEXT',
+            permissionOverwrites: [
+                {
+                    id: interaction.guild.id,
+                    deny: ['ViewChannel'],
+                },
+                {
+                    id: interaction.user.id,
+                    allow: ['ViewChannel'],
+                },
+            ],
+        });
+
+        const embed = new EmbedBuilder()
+            .setTitle('Ticket')
+            .setDescription('Support will be with you shortly.');
+
+        const closeButton = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('close_ticket')
+                    .setLabel('❌ Close Ticket')
+                    .setStyle(ButtonStyle.Danger),
+            );
+
+        await channel.send({ embeds: [embed], components: [closeButton] });
+        await interaction.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
+    } else if (interaction.customId === 'close_ticket') {
+        await interaction.channel.delete();
+    }
+});
+
+client.login(token);
