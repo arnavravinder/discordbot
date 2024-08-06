@@ -403,3 +403,120 @@ client.on('interactionCreate', async interaction => {
         const time = interaction.options.getString('time');
         const reminderMessage = interaction.options.getString('message');
 
+        const timeMatch = time.match(/(\d+)([hms])/);
+        if (!timeMatch) {
+            return interaction.reply('Invalid time format. Use `10m`, `1h`, etc.');
+        }
+
+        const value = parseInt(timeMatch[1]);
+        const unit = timeMatch[2];
+
+        let milliseconds;
+        switch (unit) {
+            case 'h':
+                milliseconds = value * 60 * 60 * 1000;
+                break;
+            case 'm':
+                milliseconds = value * 60 * 1000;
+                break;
+            case 's':
+                milliseconds = value * 1000;
+                break;
+            default:
+                return interaction.reply('Invalid time unit. Use `h` for hours, `m` for minutes, or `s` for seconds.');
+        }
+
+        setTimeout(() => {
+            interaction.user.send(`Reminder: ${reminderMessage}`);
+        }, milliseconds);
+
+        await interaction.reply(`Reminder set for ${time}.`);
+    }
+});
+
+client.on('guildMemberAdd', async member => {
+    const channel = member.guild.systemChannel;
+    if (channel) {
+        const embed = new EmbedBuilder()
+            .setTitle('Welcome!')
+            .setDescription(`Welcome to the server, ${member}!`)
+            .setColor(0x00ff00);
+        channel.send({ embeds: [embed] });
+    }
+});
+
+client.on('guildMemberRemove', async member => {
+    const channel = member.guild.systemChannel;
+    if (channel) {
+        const embed = new EmbedBuilder()
+            .setTitle('Goodbye!')
+            .setDescription(`${member} has left the server.`)
+            .setColor(0xff0000);
+        channel.send({ embeds: [embed] });
+    }
+});
+
+client.on('messageDelete', message => {
+    const logChannel = message.guild.channels.cache.find(channel => channel.name === 'logs');
+    if (logChannel) {
+        const embed = new EmbedBuilder()
+            .setTitle('Message Deleted')
+            .addFields(
+                { name: 'Author', value: message.author.tag },
+                { name: 'Content', value: message.content },
+                { name: 'Channel', value: message.channel.name },
+            )
+            .setColor(0xff0000);
+        logChannel.send({ embeds: [embed] });
+    }
+});
+
+client.on('messageUpdate', (oldMessage, newMessage) => {
+    if (oldMessage.content === newMessage.content) return;
+
+    const logChannel = oldMessage.guild.channels.cache.find(channel => channel.name === 'logs');
+    if (logChannel) {
+        const embed = new EmbedBuilder()
+            .setTitle('Message Edited')
+            .addFields(
+                { name: 'Author', value: oldMessage.author.tag },
+                { name: 'Old Content', value: oldMessage.content },
+                { name: 'New Content', value: newMessage.content },
+                { name: 'Channel', value: oldMessage.channel.name },
+            )
+            .setColor(0xffa500);
+        logChannel.send({ embeds: [embed] });
+    }
+});
+
+client.on('messageReactionAdd', async (reaction, user) => {
+    if (user.bot) return;
+
+    const { message, emoji } = reaction;
+    const member = message.guild.members.cache.get(user.id);
+
+    if (emoji.name === '🟢') {
+        const role = message.guild.roles.cache.find(role => role.name === 'GreenRole');
+        await member.roles.add(role);
+    } else if (emoji.name === '🔵') {
+        const role = message.guild.roles.cache.find(role => role.name === 'BlueRole');
+        await member.roles.add(role);
+    }
+});
+
+client.on('messageReactionRemove', async (reaction, user) => {
+    if (user.bot) return;
+
+    const { message, emoji } = reaction;
+    const member = message.guild.members.cache.get(user.id);
+
+    if (emoji.name === '🟢') {
+        const role = message.guild.roles.cache.find(role => role.name === 'GreenRole');
+        await member.roles.remove(role);
+    } else if (emoji.name === '🔵') {
+        const role = message.guild.roles.cache.find(role => role.name === 'BlueRole');
+        await member.roles.remove(role);
+    }
+});
+
+client.login(token);
