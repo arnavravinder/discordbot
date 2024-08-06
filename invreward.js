@@ -32,7 +32,23 @@ const commands = [
     {
         name: 'setup-tickets',
         description: 'Setup the ticket system'
-    }
+    },
+    {
+        name: 'invites',
+        description: 'Show your invite count'
+    },
+    {
+        name: 'leaderboard',
+        description: 'Show the invite leaderboard'
+    },
+    {
+        name: 'help',
+        description: 'Show help information'
+    },
+    {
+        name: 'setup-reaction-roles',
+        description: 'Setup reaction roles'
+    },
 ];
 
 const rest = new REST({ version: '10' }).setToken(token);
@@ -75,6 +91,8 @@ client.on(Events.GuildMemberAdd, async member => {
         if (cachedInvite && cachedInvite < invite.uses) {
             addInvite(invite.inviter.id);
             inviteCache[invite.code] = invite.uses;
+        } else if (!cachedInvite) {
+            askUserWhoInvited(member);
         }
     });
 });
@@ -105,6 +123,25 @@ async function checkRewards(invite) {
     }
 }
 
+async function askUserWhoInvited(member) {
+    try {
+        const user = await client.users.fetch(member.id);
+        const dm = await user.send('Welcome! Can you please tell us who invited you to the server?');
+        const filter = m => m.author.id === user.id;
+        const collected = await dm.channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+        const inviter = collected.first().content;
+        const inviterUser = await client.users.fetch(inviter);
+        if (inviterUser) {
+            addInvite(inviterUser.id);
+            user.send(`Thank you! We have recorded that ${inviterUser.tag} invited you.`);
+        } else {
+            user.send(`Sorry, we couldn't find the user you mentioned.`);
+        }
+    } catch (error) {
+        console.error(`Failed to ask ${member.id} who invited them: ${error.message}`);
+    }
+}
+
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
 
@@ -120,6 +157,64 @@ client.on('interactionCreate', async interaction => {
             );
 
         await interaction.reply({ content: 'Click the button to create a ticket.', components: [row] });
+    } else if (commandName === 'invites') {
+        const userId = interaction.user.id;
+        const invite = await Invite.findOne({ userId });
+        if (invite) {
+            interaction.reply(`You have ${invite.invites} invites.`);
+        } else {
+            interaction.reply('You have no invites.');
+        }
+    } else if (commandName === 'leaderboard') {
+        const topInviters = await Invite.find().sort({ invites: -1 }).limit(10);
+        const embed = new EmbedBuilder()
+            .setTitle('Invite Leaderboard')
+            .setDescription(topInviters.map((inv, i) => `${i + 1}. <@${inv.userId}> - ${inv.invites} invites`).join('\n'));
+        interaction.reply({ embeds: [embed] });
+    } else if (commandName === 'help') {
+        const embed = new EmbedBuilder()
+            .setTitle('Wave Bot Help')
+            .setDescription('Here are the available commands:\n\n`/setup-tickets` - Setup the ticket system\n`/invites` - Show your invite count\n`/leaderboard` - Show the invite leaderboard\n`/help` - Show help information\n`/setup-reaction-roles` - Setup reaction roles');
+        interaction.reply({ embeds: [embed] });
+    } else if (commandName === 'setup-reaction-roles') {
+        const embed = new EmbedBuilder()
+            .setTitle('Reaction Roles')
+            .setDescription('React to get your roles!');
+
+        const message = await interaction.reply({ embeds: [embed], fetchReply: true });
+
+        await message.react('🟢');
+        await message.react('🔵');
+    }
+});
+
+client.on('messageReactionAdd', async (reaction, user) => {
+    if (user.bot) return;
+
+    const { message, emoji } = reaction;
+    const member = message.guild.members.cache.get(user.id);
+
+    if (emoji.name === '🟢') {
+        const role = message.guild.roles.cache.find(role => role.name === 'GreenRole');
+        await member.roles.add(role);
+    } else if (emoji.name === '🔵') {
+        const role = message.guild.roles.cache.find(role => role.name === 'BlueRole');
+        await member.roles.add(role);
+    }
+});
+
+client.on('messageReactionRemove', async (reaction, user) => {
+    if (user.bot) return;
+
+    const { message, emoji } = reaction;
+    const member = message.guild.members.cache.get(user.id);
+
+    if (emoji.name === '🟢') {
+        const role = message.guild.roles.cache.find(role => role.name === 'GreenRole');
+        await member.roles.remove(role);
+    } else if (emoji.name === '🔵') {
+        const role = message.guild.roles.cache.find(role => role.name === 'BlueRole');
+        await member.roles.remove(role);
     }
 });
 
