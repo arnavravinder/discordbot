@@ -105,3 +105,98 @@ const commands = [
             }
         ],
     },
+    {
+        name: 'kick',
+        description: 'Kick a user',
+        options: [
+            {
+                name: 'user',
+                type: 'USER',
+                description: 'The user to kick',
+                required: true,
+            }
+        ],
+    },
+    {
+        name: 'mute',
+        description: 'Mute a user',
+        options: [
+            {
+                name: 'user',
+                type: 'USER',
+                description: 'The user to mute',
+                required: true,
+            }
+        ],
+    },
+    {
+        name: 'unmute',
+        description: 'Unmute a user',
+        options: [
+            {
+                name: 'user',
+                type: 'USER',
+                description: 'The user to unmute',
+                required: true,
+            }
+        ],
+    },
+    {
+        name: 'play',
+        description: 'Play a song from YouTube',
+        options: [
+            {
+                name: 'url',
+                type: 'STRING',
+                description: 'The YouTube URL',
+                required: true,
+            }
+        ],
+    },
+    {
+        name: 'stop',
+        description: 'Stop playing music',
+    },
+    {
+        name: 'setup-reaction-roles',
+        description: 'Setup reaction roles',
+    },
+    {
+        name: 'remind',
+        description: 'Set a reminder',
+        options: [
+            {
+                name: 'time',
+                type: 'STRING',
+                description: 'The time for the reminder (e.g., 10m, 1h)',
+                required: true,
+            },
+            {
+                name: 'message',
+                type: 'STRING',
+                description: 'The reminder message',
+                required: true,
+            }
+        ],
+    },
+];
+
+const rest = new REST({ version: '10' }).setToken(token);
+
+async function createCommands() {
+    try {
+        await rest.put(
+            Routes.applicationGuildCommands(clientId, guildId),
+            { body: commands },
+        );
+        console.log('✅ Successfully registered application commands.');
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+client.once('ready', async () => {
+    console.log('🤖 Bot is online!');
+    await createCommands();
+});
+
