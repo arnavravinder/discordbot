@@ -245,3 +245,291 @@ client.on('interactionCreate', async interaction => {
         } else {
             await interaction.reply('You do not have an account yet. Use `/daily` to create one.');
         }
+    } else if (commandName === 'daily') {
+        const now = new Date();
+        const user = await User.findOne({ userId: interaction.user.id });
+
+        if (user) {
+            const lastDaily = new Date(user.lastDaily);
+            const diffTime = Math.abs(now - lastDaily);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays >= 1) {
+                user.balance += 100;
+                user.dailyStreak += 1;
+                user.lastDaily = now;
+                await user.save();
+                await interaction.reply(`You have claimed your daily reward of 100 coins. Your current balance is ${user.balance} coins.`);
+            } else {
+                await interaction.reply('You have already claimed your daily reward. Please try again later.');
+            }
+        } else {
+            const newUser = new User({
+                userId: interaction.user.id,
+                balance: 100,
+                dailyStreak: 1,
+                lastDaily: now
+            });
+            await newUser.save();
+            await interaction.reply('You have claimed your daily reward of 100 coins. Your current balance is 100 coins.');
+        }
+    } else if (commandName === 'deposit') {
+        const amount = interaction.options.getInteger('amount');
+        const user = await User.findOne({ userId: interaction.user.id });
+
+        if (user && amount > 0 && user.balance >= amount) {
+            user.balance -= amount;
+            await user.save();
+            await interaction.reply(`You have deposited ${amount} coins. Your current balance is ${user.balance} coins.`);
+        } else {
+            await interaction.reply('Invalid amount or insufficient balance.');
+        }
+    } else if (commandName === 'withdraw') {
+        const amount = interaction.options.getInteger('amount');
+        const user = await User.findOne({ userId: interaction.user.id });
+
+        if (user && amount > 0) {
+            user.balance += amount;
+            await user.save();
+            await interaction.reply(`You have withdrawn ${amount} coins. Your current balance is ${user.balance} coins.`);
+        } else {
+            await interaction.reply('Invalid amount.');
+        }
+    } else if (commandName === 'joke') {
+        const response = await axios.get('https://official-joke-api.appspot.com/random_joke');
+        await interaction.reply(`${response.data.setup} - ${response.data.punchline}`);
+    } else if (commandName === 'meme') {
+        const response = await axios.get('https://meme-api.herokuapp.com/gimme');
+        const memeEmbed = new EmbedBuilder()
+            .setTitle(response.data.title)
+            .setImage(response.data.url)
+            .setColor(0x00ff00);
+        await interaction.reply({ embeds: [memeEmbed] });
+    } else if (commandName === 'trivia') {
+        const response = await axios.get('https://opentdb.com/api.php?amount=1');
+        const trivia = response.data.results[0];
+        const triviaEmbed = new EmbedBuilder()
+            .setTitle('Trivia Question')
+            .setDescription(trivia.question)
+            .addFields(
+                { name: 'Category', value: trivia.category },
+                { name: 'Difficulty', value: trivia.difficulty },
+            )
+            .setColor(0x00ff00);
+        await interaction.reply({ embeds: [triviaEmbed] });
+    } else if (commandName === 'ban') {
+        const user = interaction.options.getUser('user');
+        const member = interaction.guild.members.cache.get(user.id);
+        if (member) {
+            await member.ban();
+            await interaction.reply(`${user.tag} has been banned.`);
+        } else {
+            await interaction.reply('User not found.');
+        }
+    } else if (commandName === 'kick') {
+        const user = interaction.options.getUser('user');
+        const member = interaction.guild.members.cache.get(user.id);
+        if (member) {
+            await member.kick();
+            await interaction.reply(`${user.tag} has been kicked.`);
+        } else {
+            await interaction.reply('User not found.');
+        }
+    } else if (commandName === 'mute') {
+        const user = interaction.options.getUser('user');
+        const member = interaction.guild.members.cache.get(user.id);
+        if (member) {
+            const mutedRole = interaction.guild.roles.cache.find(role => role.name === 'Muted');
+            if (mutedRole) {
+                await member.roles.add(mutedRole);
+                await interaction.reply(`${user.tag} has been muted.`);
+            } else {
+                await interaction.reply('Muted role not found.');
+            }
+        } else {
+            await interaction.reply('User not found.');
+        }
+    } else if (commandName === 'unmute') {
+        const user = interaction.options.getUser('user');
+        const member = interaction.guild.members.cache.get(user.id);
+        if (member) {
+            const mutedRole = interaction.guild.roles.cache.find(role => role.name === 'Muted');
+            if (mutedRole) {
+                await member.roles.remove(mutedRole);
+                await interaction.reply(`${user.tag} has been unmuted.`);
+            } else {
+                await interaction.reply('Muted role not found.');
+            }
+        } else {
+            await interaction.reply('User not found.');
+        }
+    } else if (commandName === 'warn') {
+        const user = interaction.options.getUser('user');
+        const member = interaction.guild.members.cache.get(user.id);
+        if (member) {
+            let userDoc = await User.findOne({ userId: user.id });
+            if (!userDoc) {
+                userDoc = new User({ userId: user.id });
+            }
+            userDoc.warnings += 1;
+            await userDoc.save();
+            await interaction.reply(`${user.tag} has been warned. Total warnings: ${userDoc.warnings}`);
+        } else {
+            await interaction.reply('User not found.');
+        }
+    } else if (commandName === 'play') {
+        const url = interaction.options.getString('url');
+
+        if (ytdl.validateURL(url)) {
+            const voiceChannel = interaction.member.voice.channel;
+            if (!voiceChannel) {
+                return interaction.reply('You need to be in a voice channel to play music!');
+            }
+
+            const player = createAudioPlayer();
+            const connection = joinVoiceChannel({
+                channelId: voiceChannel.id,
+                guildId: interaction.guild.id,
+                adapterCreator: interaction.guild.voiceAdapterCreator,
+            });
+
+            const stream = ytdl(url, { filter: 'audioonly' });
+            const resource = createAudioResource(stream);
+
+            player.play(resource);
+            connection.subscribe(player);
+
+            await interaction.reply(`Playing: ${url}`);
+        } else {
+            await interaction.reply('Please provide a valid YouTube URL.');
+        }
+    } else if (commandName === 'stop') {
+        const voiceChannel = interaction.member.voice.channel;
+        if (!voiceChannel) {
+            return interaction.reply('You need to be in a voice channel to stop music!');
+        }
+
+        const connection = joinVoiceChannel({
+            channelId: voiceChannel.id,
+            guildId: interaction.guild.id,
+            adapterCreator: interaction.guild.voiceAdapterCreator,
+        });
+
+        connection.destroy();
+        await interaction.reply('Music stopped.');
+    } else if (commandName === 'setup-reaction-roles') {
+        const embed = new EmbedBuilder()
+            .setTitle('Reaction Roles')
+            .setDescription('React to get your roles!');
+
+        const message = await interaction.reply({ embeds: [embed], fetchReply: true });
+
+        await message.react('🟢');
+        await message.react('🔵');
+    } else if (commandName === 'remind') {
+        const time = interaction.options.getString('time');
+        const reminderMessage = interaction.options.getString('message');
+
+        const timeMatch = time.match(/(\d+)([hms])/);
+        if (!timeMatch) {
+            return interaction.reply('Invalid time format. Use `10m`, `1h`, etc.');
+        }
+
+        const value = parseInt(timeMatch[1]);
+        const unit = timeMatch[2];
+
+        let milliseconds;
+        switch (unit) {
+            case 'h':
+                milliseconds = value * 60 * 60 * 1000;
+                break;
+            case 'm':
+                milliseconds = value * 60 * 1000;
+                break;
+            case 's':
+                milliseconds = value * 1000;
+                break;
+            default:
+                return interaction.reply('Invalid time unit. Use `h` for hours, `m` for minutes, or `s` for seconds.');
+        }
+
+        setTimeout(() => {
+            interaction.user.send(`Reminder: ${reminderMessage}`);
+        }, milliseconds);
+
+        await interaction.reply(`Reminder set for ${time}.`);
+    }
+});
+
+client.on('guildMemberAdd', async member => {
+    const channel = member.guild.systemChannel;
+    if (channel) {
+        const embed = new EmbedBuilder()
+            .setTitle('Welcome!')
+            .setDescription(`Welcome to the server, ${member}!`)
+            .setColor(0x00ff00);
+        channel.send({ embeds: [embed] });
+    }
+});
+
+client.on('guildMemberRemove', async member => {
+    const channel = member.guild.systemChannel;
+    if (channel) {
+        const embed = new EmbedBuilder()
+            .setTitle('Goodbye!')
+            .setDescription(`${member} has left the server.`)
+            .setColor(0xff0000);
+        channel.send({ embeds: [embed] });
+    }
+});
+
+client.on('messageDelete', message => {
+    const logChannel = message.guild.channels.cache.find(channel => channel.name === 'logs');
+    if (logChannel) {
+        const embed = new EmbedBuilder()
+            .setTitle('Message Deleted')
+            .addFields(
+                { name: 'Author', value: message.author.tag },
+                { name: 'Content', value: message.content },
+                { name: 'Channel', value: message.channel.name },
+            )
+            .setColor(0xff0000);
+        logChannel.send({ embeds: [embed] });
+    }
+});
+
+client.on('messageUpdate', (oldMessage, newMessage) => {
+    if (oldMessage.content === newMessage.content) return;
+
+    const logChannel = oldMessage.guild.channels.cache.find(channel => channel.name === 'logs');
+    if (logChannel) {
+        const embed = new EmbedBuilder()
+            .setTitle('Message Edited')
+            .addFields(
+                { name: 'Author', value: oldMessage.author.tag },
+                { name: 'Old Content', value: oldMessage.content },
+                { name: 'New Content', value: newMessage.content },
+                { name: 'Channel', value: oldMessage.channel.name },
+            )
+            .setColor(0xffa500);
+        logChannel.send({ embeds: [embed] });
+    }
+});
+
+client.on('messageReactionAdd', async (reaction, user) => {
+    if (user.bot) return;
+
+    const { message, emoji } = reaction;
+    const member = message.guild.members.cache.get(user.id);
+
+    if (emoji.name === '🟢') {
+        const role = message.guild.roles.cache.find(role => role.name === 'GreenRole');
+        await member.roles.add(role);
+    } else if (emoji.name === '🔵') {
+        const role = message.guild.roles.cache.find(role => role.name === 'BlueRole');
+        await member.roles.add(role);
+    }
+});
+
+client.on('messageReactionRemove', async (reaction, user) => {
+    if (user.bot)
