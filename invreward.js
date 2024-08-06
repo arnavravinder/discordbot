@@ -24,6 +24,8 @@ const inviteSchema = new mongoose.Schema({
     userId: String,
     invites: { type: Number, default: 0 },
     claimedRewards: { type: [String], default: [] },
+    invitedUsers: { type: [String], default: [] },
+    questions: { type: Map, of: String }
 });
 
 const Invite = mongoose.model('Invite', inviteSchema);
@@ -49,6 +51,32 @@ const commands = [
         name: 'setup-reaction-roles',
         description: 'Setup reaction roles'
     },
+    {
+        name: 'reset-invites',
+        description: 'Reset invite count for a user'
+    },
+    {
+        name: 'list-tickets',
+        description: 'List all tickets'
+    },
+    {
+        name: 'assign-role',
+        description: 'Assign a role to a user',
+        options: [
+            {
+                name: 'user',
+                type: 'USER',
+                description: 'The user to assign a role to',
+                required: true
+            },
+            {
+                name: 'role',
+                type: 'ROLE',
+                description: 'The role to assign',
+                required: true
+            }
+        ]
+    }
 ];
 
 const rest = new REST({ version: '10' }).setToken(token);
@@ -86,23 +114,30 @@ client.on(Events.GuildMemberAdd, async member => {
     const cachedInvites = inviteCache;
     const currentInvites = await member.guild.invites.fetch();
 
+    let found = false;
+
     currentInvites.forEach(invite => {
         const cachedInvite = cachedInvites[invite.code];
         if (cachedInvite && cachedInvite < invite.uses) {
-            addInvite(invite.inviter.id);
+            addInvite(invite.inviter.id, member.id);
             inviteCache[invite.code] = invite.uses;
-        } else if (!cachedInvite) {
-            askUserWhoInvited(member);
+            found = true;
         }
     });
+
+    if (!found) {
+        askUserWhoInvited(member);
+    }
+    askQuestions(member);
 });
 
-async function addInvite(userId) {
+async function addInvite(userId, newMemberId) {
     let invite = await Invite.findOne({ userId });
     if (!invite) {
         invite = new Invite({ userId });
     }
     invite.invites += 1;
+    invite.invitedUsers.push(newMemberId);
     await invite.save();
     checkRewards(invite);
 }
@@ -132,13 +167,43 @@ async function askUserWhoInvited(member) {
         const inviter = collected.first().content;
         const inviterUser = await client.users.fetch(inviter);
         if (inviterUser) {
-            addInvite(inviterUser.id);
+            addInvite(inviterUser.id, member.id);
             user.send(`Thank you! We have recorded that ${inviterUser.tag} invited you.`);
         } else {
             user.send(`Sorry, we couldn't find the user you mentioned.`);
         }
     } catch (error) {
         console.error(`Failed to ask ${member.id} who invited them: ${error.message}`);
+    }
+}
+
+async function askQuestions(member) {
+    try {
+        const user = await client.users.fetch(member.id);
+        const questions = [
+            'What is your favorite color?',
+            'What is your hobby?',
+            'What do you expect from this server?'
+        ];
+        const answers = new Map();
+
+        for (const question of questions) {
+            const dm = await user.send(question);
+            const filter = m => m.author.id === user.id;
+            const collected = await dm.channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+            const answer = collected.first().content;
+            answers.set(question, answer);
+        }
+
+        let invite = await Invite.findOne({ userId: member.id });
+        if (!invite) {
+            invite = new Invite({ userId: member.id });
+        }
+        invite.questions = answers;
+        await invite.save();
+        user.send('Thank you for answering the questions!');
+    } catch (error) {
+        console.error(`Failed to ask questions to ${member.id}: ${error.message}`);
     }
 }
 
@@ -185,6 +250,30 @@ client.on('interactionCreate', async interaction => {
 
         await message.react('🟢');
         await message.react('🔵');
+    } else if (commandName === 'reset-invites') {
+        const user = interaction.options.getUser('user');
+        let invite = await Invite.findOne({ userId: user.id });
+        if (invite) {
+            invite.invites = 0;
+            invite.claimedRewards = [];
+            await invite.save();
+            interaction.reply(`Reset invites for ${user.tag}.`);
+        } else {
+            interaction.reply(`${user.tag} has no invites to reset.`);
+        }
+    } else if (commandName === 'list-tickets') {
+        const channels = interaction.guild.channels.cache.filter(channel => channel.name.startsWith('ticket-'));
+        if (channels.size > 0) {
+            interaction.reply(`Open tickets:\n${channels.map(channel => channel.name).join('\n')}`);
+        } else {
+            interaction.reply('There are no open tickets.');
+        }
+    } else if (commandName === 'assign-role') {
+        const user = interaction.options.getUser('user');
+        const role = interaction.options.getRole('role');
+        const member = interaction.guild.members.cache.get(user.id);
+        await member.roles.add(role);
+        interaction.reply(`Assigned role ${role.name} to ${user.tag}.`);
     }
 });
 
