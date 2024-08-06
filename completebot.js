@@ -200,3 +200,99 @@ client.once('ready', async () => {
     await createCommands();
 });
 
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isCommand()) return;
+
+    const { commandName } = interaction;
+
+    if (commandName === 'ping') {
+        await interaction.reply('Pong!');
+    } else if (commandName === 'server') {
+        const serverEmbed = new EmbedBuilder()
+            .setTitle('Server Info')
+            .addFields(
+                { name: 'Name', value: interaction.guild.name },
+                { name: 'Total Members', value: interaction.guild.memberCount.toString() },
+            )
+            .setColor(0x00ff00);
+        await interaction.reply({ embeds: [serverEmbed] });
+    } else if (commandName === 'user') {
+        const userEmbed = new EmbedBuilder()
+            .setTitle('User Info')
+            .addFields(
+                { name: 'Username', value: interaction.user.tag },
+                { name: 'ID', value: interaction.user.id },
+            )
+            .setColor(0x00ff00);
+        await interaction.reply({ embeds: [userEmbed] });
+    } else if (commandName === 'balance') {
+        const user = await User.findOne({ userId: interaction.user.id });
+        if (user) {
+            await interaction.reply(`Your balance is ${user.balance} coins.`);
+        } else {
+            await interaction.reply('You do not have an account yet. Use `/daily` to create one.');
+        }
+    } else if (commandName === 'daily') {
+        const now = new Date();
+        const user = await User.findOne({ userId: interaction.user.id });
+
+        if (user) {
+            const lastDaily = new Date(user.lastDaily);
+            const diffTime = Math.abs(now - lastDaily);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays >= 1) {
+                user.balance += 100;
+                user.dailyStreak += 1;
+                user.lastDaily = now;
+                await user.save();
+                await interaction.reply(`You have claimed your daily reward of 100 coins. Your current balance is ${user.balance} coins.`);
+            } else {
+                await interaction.reply('You have already claimed your daily reward. Please try again later.');
+            }
+        } else {
+            const newUser = new User({
+                userId: interaction.user.id,
+                balance: 100,
+                dailyStreak: 1,
+                lastDaily: now
+            });
+            await newUser.save();
+            await interaction.reply('You have claimed your daily reward of 100 coins. Your current balance is 100 coins.');
+        }
+    } else if (commandName === 'deposit') {
+        const amount = interaction.options.getInteger('amount');
+        const user = await User.findOne({ userId: interaction.user.id });
+
+        if (user && amount > 0 && user.balance >= amount) {
+            user.balance -= amount;
+            await user.save();
+            await interaction.reply(`You have deposited ${amount} coins. Your current balance is ${user.balance} coins.`);
+        } else {
+            await interaction.reply('Invalid amount or insufficient balance.');
+        }
+    } else if (commandName === 'withdraw') {
+        const amount = interaction.options.getInteger('amount');
+        const user = await User.findOne({ userId: interaction.user.id });
+
+        if (user && amount > 0) {
+            user.balance += amount;
+            await user.save();
+            await interaction.reply(`You have withdrawn ${amount} coins. Your current balance is ${user.balance} coins.`);
+        } else {
+            await interaction.reply('Invalid amount.');
+        }
+    } else if (commandName === 'joke') {
+        const response = await axios.get('https://official-joke-api.appspot.com/random_joke');
+        await interaction.reply(`${response.data.setup} - ${response.data.punchline}`);
+    } else if (commandName === 'meme') {
+        const response = await axios.get('https://meme-api.herokuapp.com/gimme');
+        const memeEmbed = new EmbedBuilder()
+            .setTitle(response.data.title)
+            .setImage(response.data.url)
+            .setColor(0x00ff00);
+        await interaction.reply({ embeds: [memeEmbed] });
+    } else if (commandName === 'trivia') {
+        const response = await axios.get('https://opentdb.com/api.php?amount=1');
+        const trivia = response.data.results[0];
+        con
