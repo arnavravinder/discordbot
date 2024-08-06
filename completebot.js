@@ -295,4 +295,111 @@ client.on('interactionCreate', async interaction => {
     } else if (commandName === 'trivia') {
         const response = await axios.get('https://opentdb.com/api.php?amount=1');
         const trivia = response.data.results[0];
-        con
+        const triviaEmbed = new EmbedBuilder()
+            .setTitle('Trivia Question')
+            .setDescription(trivia.question)
+            .addFields(
+                { name: 'Category', value: trivia.category },
+                { name: 'Difficulty', value: trivia.difficulty },
+            )
+            .setColor(0x00ff00);
+        await interaction.reply({ embeds: [triviaEmbed] });
+    } else if (commandName === 'ban') {
+        const user = interaction.options.getUser('user');
+        const member = interaction.guild.members.cache.get(user.id);
+        if (member) {
+            await member.ban();
+            await interaction.reply(`${user.tag} has been banned.`);
+        } else {
+            await interaction.reply('User not found.');
+        }
+    } else if (commandName === 'kick') {
+        const user = interaction.options.getUser('user');
+        const member = interaction.guild.members.cache.get(user.id);
+        if (member) {
+            await member.kick();
+            await interaction.reply(`${user.tag} has been kicked.`);
+        } else {
+            await interaction.reply('User not found.');
+        }
+    } else if (commandName === 'mute') {
+        const user = interaction.options.getUser('user');
+        const member = interaction.guild.members.cache.get(user.id);
+        if (member) {
+            const mutedRole = interaction.guild.roles.cache.find(role => role.name === 'Muted');
+            if (mutedRole) {
+                await member.roles.add(mutedRole);
+                await interaction.reply(`${user.tag} has been muted.`);
+            } else {
+                await interaction.reply('Muted role not found.');
+            }
+        } else {
+            await interaction.reply('User not found.');
+        }
+    } else if (commandName === 'unmute') {
+        const user = interaction.options.getUser('user');
+        const member = interaction.guild.members.cache.get(user.id);
+        if (member) {
+            const mutedRole = interaction.guild.roles.cache.find(role => role.name === 'Muted');
+            if (mutedRole) {
+                await member.roles.remove(mutedRole);
+                await interaction.reply(`${user.tag} has been unmuted.`);
+            } else {
+                await interaction.reply('Muted role not found.');
+            }
+        } else {
+            await interaction.reply('User not found.');
+        }
+    } else if (commandName === 'play') {
+        const url = interaction.options.getString('url');
+
+        if (ytdl.validateURL(url)) {
+            const voiceChannel = interaction.member.voice.channel;
+            if (!voiceChannel) {
+                return interaction.reply('You need to be in a voice channel to play music!');
+            }
+
+            const player = createAudioPlayer();
+            const connection = joinVoiceChannel({
+                channelId: voiceChannel.id,
+                guildId: interaction.guild.id,
+                adapterCreator: interaction.guild.voiceAdapterCreator,
+            });
+
+            const stream = ytdl(url, { filter: 'audioonly' });
+            const resource = createAudioResource(stream);
+
+            player.play(resource);
+            connection.subscribe(player);
+
+            await interaction.reply(`Playing: ${url}`);
+        } else {
+            await interaction.reply('Please provide a valid YouTube URL.');
+        }
+    } else if (commandName === 'stop') {
+        const voiceChannel = interaction.member.voice.channel;
+        if (!voiceChannel) {
+            return interaction.reply('You need to be in a voice channel to stop music!');
+        }
+
+        const connection = joinVoiceChannel({
+            channelId: voiceChannel.id,
+            guildId: interaction.guild.id,
+            adapterCreator: interaction.guild.voiceAdapterCreator,
+        });
+
+        connection.destroy();
+        await interaction.reply('Music stopped.');
+    } else if (commandName === 'setup-reaction-roles') {
+        const embed = new EmbedBuilder()
+            .setTitle('Reaction Roles')
+            .setDescription('React to get your roles!');
+
+        const message = await interaction.reply({ embeds: [embed], fetchReply: true });
+
+        await message.react('🟢');
+        await message.react('🔵');
+    } else if (commandName === 'remind') {
+        const time = interaction.options.getString('time');
+        const reminderMessage = interaction.options.getString('message');
+
